@@ -14,9 +14,12 @@ lto = true
 package_name = "uz.pikselqala.zulmat"
 label = "ZULMAT"
 fullscreen = true
+res = "android_res"
+icon = "@mipmap/ic_launcher"
 build_targets = ["aarch64-linux-android", "armv7-linux-androideabi"]
 version_code = 1
 version_name = "0.1-demo"
 
 [package.metadata.android.activity_attributes]
 "android:screenOrientation" = "userLandscape"
+"android:exported" = "true"
