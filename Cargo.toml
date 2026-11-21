@@ -12,7 +12,7 @@ lto = true
 
 [package.metadata.android]
 package_name = "uz.pikselqala.zulmat"
-label = "Zulmat Qal'asi"
+label = "Zulmat Qalʼasi"
 fullscreen = true
 res = "android_res"
 icon = "@mipmap/ic_launcher"
