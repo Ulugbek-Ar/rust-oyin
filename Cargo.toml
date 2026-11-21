@@ -11,13 +11,13 @@ opt-level = 3
 lto = true
 
 [package.metadata.android]
-package_name = "uz.pikselqala.zulmat"
-label = "Zulmat Qalʼasi"
+package_name = "uz.pikselqala.ritsar"
+label = "Qalʼa Ritsari"
 fullscreen = true
 res = "android_res"
 icon = "@mipmap/ic_launcher"
 build_targets = ["aarch64-linux-android", "armv7-linux-androideabi"]
-version_code = 2
+version_code = 3
 version_name = "0.2-rpg"
 
 [package.metadata.android.activity_attributes]

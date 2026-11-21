@@ -1,4 +1,4 @@
-# ZULMAT QAL'ASI
+# QAL'A RITSARI
 
 Piksel action RPG, Rust + macroquad. Grafika, ovoz va musiqa to'liq kod bilan yaratilgan.
 
@@ -17,5 +17,5 @@ cargo build --release --target wasm32-unknown-unknown   # brauzer (site/ papkasi
 
 ## Android APK
 GitHub Actions har push da APK yig'adi, apksigner bilan imzolaydi va
-`https://github.com/Ulugbek-Ar/rust-oyin/releases/download/apk/ZULMAT.apk` ga joylaydi.
+`https://github.com/Ulugbek-Ar/rust-oyin/releases/download/apk/QALA-RITSARI.apk` ga joylaydi.
 Ikonkalarni qayta yaratish: `cargo run --release -- --icons`.

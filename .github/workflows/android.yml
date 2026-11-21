@@ -36,31 +36,31 @@ jobs:
             -alias zulmat -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Piksel Qala, O=Piksel Qala, C=UZ"
           $BT/apksigner sign --ks zulmat.jks --ks-pass pass:zulmat123 --key-pass pass:zulmat123 \
             --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
-            --out ZULMAT.apk aligned.apk
-          $BT/apksigner verify -v ZULMAT.apk
-          $BT/aapt dump badging ZULMAT.apk | grep -E "package:|sdkVersion|targetSdk|native-code|application:|launchable"
-          $BT/aapt dump xmltree ZULMAT.apk AndroidManifest.xml | grep -E "exported|icon|label"
-          ls -lh ZULMAT.apk
+            --out QALA-RITSARI.apk aligned.apk
+          $BT/apksigner verify -v QALA-RITSARI.apk
+          $BT/aapt dump badging QALA-RITSARI.apk | grep -E "package:|sdkVersion|targetSdk|native-code|application:|launchable"
+          $BT/aapt dump xmltree QALA-RITSARI.apk AndroidManifest.xml | grep -E "exported|icon|label"
+          ls -lh QALA-RITSARI.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ZULMAT-apk
-          path: ZULMAT.apk
+          name: QALA-RITSARI-apk
+          path: QALA-RITSARI.apk
 
       - name: Publish to GitHub Release (sayt shu havoladan yuklaydi)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk
-          name: ZULMAT APK (eng so'nggi)
+          name: Qalʼa Ritsari APK (eng so'nggi)
           target_commitish: ${{ github.sha }}
-          files: ZULMAT.apk
+          files: QALA-RITSARI.apk
           overwrite_files: true
           body: "Eng so'nggi Android build. Commit: ${{ github.sha }}"
 
       - name: Telegram kanalga yuborish
         if: ${{ env.TG_TOKEN != '' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[tg]')) }}
         run: |
-          curl -sS -f -F chat_id="$TG_CHAT" -F document=@ZULMAT.apk \
+          curl -sS -f -F chat_id="$TG_CHAT" -F document=@QALA-RITSARI.apk \
             -F caption="🌑 ZULMAT — demo v0.1
           Zulmatda yorug'lik bo'l! Neon arena survivor, Rust'da yozilgan.
 

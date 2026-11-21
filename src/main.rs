@@ -1,4 +1,4 @@
-// ZULMAT QAL'ASI — pixel action RPG (Rust + macroquad)
+// QAL'A RITSARI — pixel action RPG (Rust + macroquad)
 use macroquad::audio::{load_sound_from_bytes, play_sound, PlaySoundParams, Sound};
 use macroquad::prelude::*;
 use std::f32::consts::{PI, TAU};
@@ -970,7 +970,7 @@ fn export_icons() {
 }
 
 fn conf() -> Conf {
-    Conf { window_title: "ZULMAT QAL'ASI".into(), window_width: 1280, window_height: 720, high_dpi: true, sample_count: 1, ..Default::default() }
+    Conf { window_title: "QAL'A RITSARI".into(), window_width: 1280, window_height: 720, high_dpi: true, sample_count: 1, ..Default::default() }
 }
 
 #[macroquad::main(conf)]
@@ -991,7 +991,7 @@ async fn main() {
                 g.draw_world(&art);
                 draw_rectangle(0.0, 0.0, vw(), VH, Color::new(0.02, 0.0, 0.05, 0.55));
                 let pulse = 0.75 + 0.25 * (g.t * 3.0).sin();
-                centered("ZULMAT QAL'ASI", VH * 0.33, 96.0, Color::new(0.75, 0.6, 1.0, 1.0));
+                centered("QAL'A RITSARI", VH * 0.33, 96.0, Color::new(0.75, 0.6, 1.0, 1.0));
                 centered("Piksel Action RPG", VH * 0.33 + 44.0, 28.0, rgb(255, 215, 90));
                 let help = if g.touch_mode { "Chap: yurish   HUJUM: qilich   SAKRASH   OLOV   IKSIR" }
                     else { "WASD yurish  J/Sichqoncha qilich  Space sakrash  K/O'ng tugma olov  Q iksir" };
