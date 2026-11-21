@@ -30,27 +30,15 @@ jobs:
         run: |
           BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
           echo "build-tools: $BT"
-          PLAT=$(ls -d $ANDROID_HOME/platforms/android-* | sort -V | tail -1)
-          echo "platform: $PLAT"
-          # rebuild the APK with a patched manifest (exported, icon, label) and our mipmap icons
-          M=$(sudo find target/android-artifacts -name AndroidManifest.xml | head -1)
-          echo "manifest: $M"
-          sudo cat "$M" > manifest.xml
-          grep -q 'android:exported' manifest.xml || sed -i 's/<activity /<activity android:exported="true" /' manifest.xml
-          grep -q 'android:icon' manifest.xml || sed -i 's/<application /<application android:icon="@mipmap\/ic_launcher" /' manifest.xml
-          cat manifest.xml
-          $BT/aapt package -f -M manifest.xml -S android_res -I $PLAT/android.jar -F base.apk
-          mkdir -p extra && unzip -q -o raw.apk 'classes.dex' 'lib/*' -d extra || unzip -q -o raw.apk 'lib/*' -d extra
-          (cd extra && $BT/aapt add ../base.apk $(find . -type f | sed 's|^\./||'))
-          unzip -l base.apk
-          $BT/zipalign -f -p 4 base.apk aligned.apk
+          zip -q -d raw.apk 'META-INF/*' || true
+          $BT/zipalign -f -p 4 raw.apk aligned.apk
           keytool -genkeypair -keystore zulmat.jks -storepass zulmat123 -keypass zulmat123 \
             -alias zulmat -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Piksel Qala, O=Piksel Qala, C=UZ"
           $BT/apksigner sign --ks zulmat.jks --ks-pass pass:zulmat123 --key-pass pass:zulmat123 \
             --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
             --out ZULMAT.apk aligned.apk
           $BT/apksigner verify -v ZULMAT.apk
-          $BT/aapt dump badging ZULMAT.apk | grep -E "package:|sdkVersion|targetSdk|native-code|launchable"
+          $BT/aapt dump badging ZULMAT.apk | grep -E "package:|sdkVersion|targetSdk|native-code|application:|launchable"
           $BT/aapt dump xmltree ZULMAT.apk AndroidManifest.xml | grep -E "exported|icon|label"
           ls -lh ZULMAT.apk
 
