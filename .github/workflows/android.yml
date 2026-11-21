@@ -1,0 +1,55 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main, ccr-6beb9320-7sxxbq]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build APK (cargo-quad-apk)
+        run: |
+          docker run --rm -v "$PWD":/root/src -w /root/src notfl3/cargo-apk \
+            bash -c "rustup update stable && rustup default stable && \
+                     rustup target add aarch64-linux-android armv7-linux-androideabi && \
+                     cargo quad-apk build --release"
+          sudo cp target/android-artifacts/release/apk/zulmat.apk ZULMAT.apk
+          sudo chown $USER ZULMAT.apk
+          ls -lh ZULMAT.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ZULMAT-apk
+          path: ZULMAT.apk
+
+      - name: Publish to GitHub Release (sayt shu havoladan yuklaydi)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk
+          name: ZULMAT APK (eng so'nggi)
+          target_commitish: ${{ github.sha }}
+          files: ZULMAT.apk
+          overwrite_files: true
+          body: "Eng so'nggi Android build. Commit: ${{ github.sha }}"
+
+      - name: Telegram kanalga yuborish
+        if: ${{ env.TG_TOKEN != '' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[tg]')) }}
+        run: |
+          curl -sS -f -F chat_id="$TG_CHAT" -F document=@ZULMAT.apk \
+            -F caption="🌑 ZULMAT — demo v0.1
+          Zulmatda yorug'lik bo'l! Neon arena survivor, Rust'da yozilgan.
+
+          🎮 Chap tomon — joystik, o'ng tomon — dash, nishon avtomatik.
+          ⬇️ APK ni o'rnating va rekordingizni izohda yozing!" \
+            "https://api.telegram.org/bot${TG_TOKEN}/sendDocument" > /dev/null
+          echo "Yuborildi"
