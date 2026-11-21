@@ -1,24 +1,21 @@
-# ZULMAT
+# ZULMAT QAL'ASI
 
-Neon arena survivor, Rust + macroquad. Zulmatda yorug'lik bo'l.
+Piksel action RPG, Rust + macroquad. Grafika, ovoz va musiqa to'liq kod bilan yaratilgan.
+
+Qilich kombosi, sakrash, olov sehri, iksirlar; tasodifiy qavatlar, eshiklari yopiladigan xonalar,
+xazina va boss (Soya Lordi); daraja va qobiliyat tanlash.
 
 ## Ishga tushirish
 ```
-cargo run --release
+cargo run --release              # kompyuter
+cargo build --release --target wasm32-unknown-unknown   # brauzer (site/ papkasi)
 ```
 
-## Android APK
-GitHub Actions har push da APK yig'adi (Actions → ZULMAT-apk). Telegramga avtomatik yuborish uchun repo Secrets ga `TELEGRAM_BOT_TOKEN` va `TELEGRAM_CHAT_ID` qo'shing; commit xabarida `[tg]` bo'lsa yoki workflow qo'lda ishga tushirilsa kanalga jo'natiladi.
-
 ## Boshqaruv
-- **WASD / strelkalar** — harakat
-- **Sichqoncha** — nishon (o'q avtomatik otiladi)
-- **Space / O'ng tugma** — dash (qisqa daxlsizlik)
-- **1/2/3 yoki klik** — daraja oshganda kuchaytirish tanlash
-- **Telefonda:** chap tomon — joystik, o'ng tomon — dash, nishon avtomatik
+- **WASD** — yurish, **J / sichqoncha** — qilich, **Space** — sakrash, **K / o'ng tugma** — olov, **Q** — iksir
+- **Telefonda:** chap tomon — joystik, o'ngda HUJUM / SAKRASH / OLOV / IKSIR tugmalari
 
-## Dushmanlar
-- Uchburchak — quvuvchi
-- Kvadrat — sakrovchi (sariq chiziq = hujum ogohlantirishi)
-- Beshburchak — bo'linuvchi
-- Oltiburchak — tank
+## Android APK
+GitHub Actions har push da APK yig'adi, apksigner bilan imzolaydi va
+`https://github.com/Ulugbek-Ar/rust-oyin/releases/download/apk/ZULMAT.apk` ga joylaydi.
+Ikonkalarni qayta yaratish: `cargo run --release -- --icons`.
