@@ -5,6 +5,9 @@ on:
     branches: [main, ccr-6beb9320-7sxxbq]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -28,6 +31,16 @@ jobs:
         with:
           name: ZULMAT-apk
           path: ZULMAT.apk
+
+      - name: Publish to GitHub Release (sayt shu havoladan yuklaydi)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk
+          name: ZULMAT APK (eng so'nggi)
+          target_commitish: ${{ github.sha }}
+          files: ZULMAT.apk
+          overwrite_files: true
+          body: "Eng so'nggi Android build. Commit: ${{ github.sha }}"
 
       - name: Telegram kanalga yuborish
         if: ${{ env.TG_TOKEN != '' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[tg]')) }}

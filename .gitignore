@@ -27,3 +27,5 @@ rustc-ice-*.txt
 # Added by cargo
 
 /target
+site/zulmat.wasm
+site/mq_js_bundle.js
