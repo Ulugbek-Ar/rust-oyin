@@ -53,14 +53,9 @@ jobs:
           path: QALA-RITSARI.apk
 
       - name: Publish to GitHub Release (sayt shu havoladan yuklaydi)
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: apk
-          name: Qalʼa Ritsari APK (eng so'nggi)
-          target_commitish: ${{ github.sha }}
-          files: QALA-RITSARI.apk
-          overwrite_files: true
-          body: "Eng so'nggi Android build. Commit: ${{ github.sha }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload apk QALA-RITSARI.apk --clobber --repo ${{ github.repository }}
 
       - name: Telegram kanalga yuborish
         if: ${{ env.TG_TOKEN != '' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[tg]')) }}
