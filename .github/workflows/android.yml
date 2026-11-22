@@ -27,15 +27,19 @@ jobs:
           sudo cp target/android-artifacts/release/apk/zulmat.apk raw.apk
           sudo chown $USER raw.apk
 
+      - name: Restore signing key (stable across builds)
+        uses: actions/cache@v4
+        with:
+          path: signing.jks
+          key: pikselqala-signing-key-v1
       - name: Re-sign APK (zipalign + apksigner v1/v2/v3)
         run: |
           BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
           echo "build-tools: $BT"
           zip -q -d raw.apk 'META-INF/*' || true
           $BT/zipalign -f -p 4 raw.apk aligned.apk
-          keytool -genkeypair -keystore zulmat.jks -storepass zulmat123 -keypass zulmat123 \
-            -alias zulmat -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Piksel Qala, O=Piksel Qala, C=UZ"
-          $BT/apksigner sign --ks zulmat.jks --ks-pass pass:zulmat123 --key-pass pass:zulmat123 \
+          [ -f signing.jks ] || keytool -genkeypair -keystore signing.jks -storepass pikselqala -keypass pikselqala -alias pq -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Piksel Qala, O=Piksel Qala, C=UZ"
+          $BT/apksigner sign --ks signing.jks --ks-pass pass:pikselqala --key-pass pass:pikselqala \
             --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
             --out QALA-RITSARI.apk aligned.apk
           $BT/apksigner verify -v QALA-RITSARI.apk
