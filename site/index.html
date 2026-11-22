@@ -1,251 +1,347 @@
-<title>Qal'a Ritsari</title>
+<title>Piksel Qala</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: a dungeon page; hero with the hero sprite, live game window, then the bestiary and rules in tight grids */
+/* Layout: app shell — brand bar + 3 views (bosh / kutubxona / sozlamalar), bottom tab bar on phones. No webfonts, no images: opens fast on a weak connection. */
 :root {
-  --void: #08050f;
-  --stone: #16111f;
-  --brick: #2a2238;
-  --fg: #ece8f4;
-  --dim: #9a90b0;
-  --torch: #ffb04a;
-  --gold: #ffd75a;
-  --arcane: #b88cff;
-  --blood: #f04050;
-  --f-display: "Silkscreen", "Courier New", monospace;
-  --f-body: "IBM Plex Sans", system-ui, sans-serif;
-  --f-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --bg: #0d0a14; --panel: #17121f; --line: #2b2338; --fg: #ece8f4; --dim: #9a90b0;
+  --gold: #ffd75a; --gold-ink: #2a1f05; --arcane: #b88cff; --ok: #5fd38a; --warn: #ffb04a;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   color-scheme: dark;
 }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --bg: #f4f1f8; --panel: #ffffff; --line: #ddd5e8; --fg: #1d1626; --dim: #6a5f7c; --gold: #b88a12; --gold-ink: #ffffff; --arcane: #6b3fc4; --ok: #1f8a4c; --warn: #b35f00; color-scheme: light; } }
+:root[data-theme="light"] { --bg: #f4f1f8; --panel: #ffffff; --line: #ddd5e8; --fg: #1d1626; --dim: #6a5f7c; --gold: #b88a12; --gold-ink: #ffffff; --arcane: #6b3fc4; --ok: #1f8a4c; --warn: #b35f00; color-scheme: light; }
+:root[data-skin="dark"] { --bg: #0d0a14; --panel: #17121f; --line: #2b2338; --fg: #ece8f4; --dim: #9a90b0; --gold: #ffd75a; --gold-ink: #2a1f05; --arcane: #b88cff; --ok: #5fd38a; --warn: #ffb04a; color-scheme: dark; }
+:root[data-skin="light"] { --bg: #f4f1f8; --panel: #ffffff; --line: #ddd5e8; --fg: #1d1626; --dim: #6a5f7c; --gold: #b88a12; --gold-ink: #ffffff; --arcane: #6b3fc4; --ok: #1f8a4c; --warn: #b35f00; color-scheme: light; }
 * { box-sizing: border-box; }
-body {
-  background: var(--void); color: var(--fg); font: 16px/1.6 var(--f-body);
-  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
-  background-image:
-    linear-gradient(var(--void) 2px, transparent 2px),
-    linear-gradient(90deg, var(--void) 2px, transparent 2px),
-    linear-gradient(var(--stone), var(--stone));
-  background-size: 64px 32px, 64px 32px, 100% 100%;
-}
-body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: -1;
-  background: radial-gradient(ellipse at 50% 10%, rgba(255,176,74,.10), transparent 45%), radial-gradient(ellipse at 50% 30%, transparent 0%, var(--void) 75%); }
-.wrap { max-width: 1080px; margin: 0 auto; }
+html, body { min-height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 var(--font); }
 a { color: var(--arcane); }
-:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.wrap { max-width: 960px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+canvas.px { image-rendering: pixelated; display: block; }
 
-header.hero { padding-block: 48px 28px; display: grid; gap: 18px; justify-items: center; text-align: center; }
-.sprite { width: 96px; height: 96px; image-rendering: pixelated; filter: drop-shadow(0 0 24px rgba(255,176,74,.35)); animation: bob 1.6s ease-in-out infinite; }
-@keyframes bob { 50% { transform: translateY(-6px); } }
-.eyebrow { font: 500 12px/1 var(--f-mono); letter-spacing: .18em; text-transform: uppercase; color: var(--dim); }
-h1 { font: 700 clamp(44px, 10vw, 104px)/0.95 var(--f-display); margin: 0; letter-spacing: .03em; color: var(--arcane);
-  text-shadow: 0 4px 0 #3a2160, 0 0 40px rgba(184,140,255,.35); text-wrap: balance; }
-.tagline { font-size: 19px; margin: 0; max-width: 46ch; text-wrap: balance; }
-.cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 6px; }
-.btn { font: 700 15px/1 var(--f-display); letter-spacing: .05em; text-decoration: none; padding: 16px 22px; cursor: pointer;
-  border: 0; color: var(--void); background: var(--gold); display: inline-flex; align-items: center; gap: 10px;
-  box-shadow: 0 4px 0 #9a7320, 0 0 30px rgba(255,215,90,.25); transition: transform .1s; }
-.btn:hover { transform: translateY(-2px); }
-.btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #9a7320; }
-.btn.ghost { background: transparent; color: var(--gold); box-shadow: inset 0 0 0 2px var(--gold); }
-.btn small { font: 500 11px/1 var(--f-mono); opacity: .75; }
+header.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 2px solid var(--line); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.bar .wrap { display: flex; align-items: center; gap: 16px; padding-block: 10px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--fg); font: 800 17px/1 var(--mono); letter-spacing: .06em; }
+.brand canvas { width: 28px; height: 28px; }
+nav.tabs { margin-left: auto; display: flex; gap: 4px; }
+nav.tabs a { text-decoration: none; color: var(--dim); padding: 8px 12px; border-radius: 6px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+nav.tabs a[aria-current="page"] { color: var(--fg); background: var(--panel); box-shadow: inset 0 -2px 0 var(--gold); }
+nav.tabs svg { width: 18px; height: 18px; }
+@media (max-width: 640px) {
+  nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; margin: 0; justify-content: space-around; background: var(--panel); border-top: 2px solid var(--line);
+    padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); z-index: 6; }
+  nav.tabs a { flex-direction: column; gap: 2px; font-size: 12px; padding: 4px 10px; }
+  nav.tabs a[aria-current="page"] { box-shadow: none; background: none; color: var(--gold); }
+  main { padding-bottom: 76px; }
+}
+main { padding-block: 20px 40px; }
+h1 { font: 800 24px/1.2 var(--mono); margin: 0 0 4px; letter-spacing: .02em; text-wrap: balance; }
+h2 { font: 700 16px/1.3 var(--mono); margin: 0 0 10px; letter-spacing: .04em; text-transform: uppercase; color: var(--dim); }
+.sub { color: var(--dim); margin: 0 0 18px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
 
-.stage { position: relative; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; background: #06040a; overflow: hidden;
-  box-shadow: 0 0 0 4px var(--brick), 0 0 0 6px #000, 0 30px 80px rgba(0,0,0,.7); }
-.stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
-.start { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 16px; width: 100%;
-  background: radial-gradient(circle at 50% 45%, rgba(255,176,74,.14), transparent 50%), #06040a; border: 0; color: var(--fg); cursor: pointer; font: inherit; }
-.start img { width: 80px; height: 80px; image-rendering: pixelated; }
-.start span { font: 700 18px/1 var(--f-display); letter-spacing: .08em; color: var(--gold); }
-.start em { font: 400 13px/1 var(--f-mono); color: var(--dim); font-style: normal; }
-.stage-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding-block: 14px; font: 400 13px/1.4 var(--f-mono); color: var(--dim); }
-.stage-bar button { font: 500 13px/1 var(--f-mono); background: none; border: 1px solid var(--brick); color: var(--fg); padding: 8px 12px; cursor: pointer; }
-.stage-bar button:hover { border-color: var(--gold); }
+.search { display: flex; gap: 8px; margin-bottom: 18px; }
+.search input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 8px; border: 2px solid var(--line); background: var(--panel); }
+.search input:focus { border-color: var(--gold); outline: none; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 18px; border-radius: 8px; border: 0; cursor: pointer; font-weight: 700; text-decoration: none; background: var(--gold); color: var(--gold-ink); }
+.btn.ghost { background: transparent; color: var(--fg); box-shadow: inset 0 0 0 2px var(--line); }
+.btn.danger { background: transparent; color: #f05a6a; box-shadow: inset 0 0 0 2px #f05a6a; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.wide { width: 100%; }
 
-section { padding-block: 52px 8px; }
-h2 { font: 700 26px/1.1 var(--f-display); letter-spacing: .05em; margin: 0 0 6px; color: var(--gold); text-wrap: balance; }
-.lead { color: var(--dim); margin: 0 0 22px; max-width: 62ch; }
-.panel { background: rgba(8,5,15,.85); border: 2px solid var(--brick); padding: 18px; min-width: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 14px; }
+.card { text-decoration: none; color: var(--fg); overflow: hidden; display: grid; transition: transform .12s; }
+.card:hover { transform: translateY(-2px); }
+.card canvas { width: 100%; height: auto; aspect-ratio: 16 / 9; max-width: 100%; }
+.card .body { padding: 12px 14px 14px; display: grid; gap: 6px; min-width: 0; }
+.card .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.card b { font-size: 17px; }
+.tag { font: 600 11px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px; background: var(--line); color: var(--fg); white-space: nowrap; }
+.tag.ok { background: color-mix(in srgb, var(--ok) 22%, transparent); color: var(--ok); }
+.tag.warn { background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn); }
+.meta { color: var(--dim); font: 13px/1.4 var(--mono); display: flex; flex-wrap: wrap; gap: 4px 14px; font-variant-numeric: tabular-nums; }
+.empty { padding: 28px; text-align: center; color: var(--dim); }
 
-.bestiary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
-.foe { display: grid; gap: 8px; align-content: start; }
-.foe canvas { width: 64px; height: 64px; image-rendering: pixelated; }
-.foe h3 { font: 700 14px/1.1 var(--f-display); margin: 0; letter-spacing: .04em; }
-.foe p { margin: 0; color: var(--dim); font-size: 14px; }
-.foe.boss { border-color: #5a2f8a; background: linear-gradient(180deg, rgba(184,140,255,.10), rgba(8,5,15,.85)); }
+.detail { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.detail .cover canvas { width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: 10px; max-width: 100%; }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; padding: 16px; font-variant-numeric: tabular-nums; }
+.facts dt { color: var(--dim); }
+.facts dd { margin: 0; font-weight: 600; text-align: right; }
+.actions { display: grid; gap: 10px; padding: 0 16px 16px; }
+.note { font-size: 13px; color: var(--warn); margin: 0; }
+ul.feat { margin: 10px 0 0; padding-left: 18px; color: var(--dim); }
+.back { display: inline-flex; gap: 6px; margin-bottom: 12px; text-decoration: none; color: var(--dim); font-weight: 600; }
+@media (max-width: 720px) { .detail { grid-template-columns: minmax(0, 1fr); } }
 
-.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
-.panel h3 { font: 700 14px/1 var(--f-display); letter-spacing: .06em; color: var(--arcane); margin: 0 0 14px; }
-dl.keys { display: grid; grid-template-columns: auto 1fr; gap: 10px 16px; margin: 0; align-items: baseline; }
-dl.keys dt { font: 500 13px/1 var(--f-mono); color: var(--void); background: var(--fg); padding: 5px 8px; justify-self: start; white-space: nowrap; }
-dl.keys dd { margin: 0; font-size: 15px; }
+.profile { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: center; padding: 16px; margin-bottom: 18px; }
+.badge { width: 64px; height: 64px; }
+.rank { font: 800 20px/1.2 var(--mono); color: var(--gold); }
+.prog { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; margin-top: 8px; }
+.prog i { display: block; height: 100%; background: var(--gold); }
+.libitem { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px; }
+.libitem canvas { width: 64px; height: 64px; border-radius: 8px; background: var(--bg); }
+.libitem + .libitem { border-top: 1px solid var(--line); }
+@media (max-width: 480px) { .libitem { grid-template-columns: 48px minmax(0, 1fr); } .libitem canvas { width: 48px; height: 48px; } .libitem .btn { grid-column: 1 / -1; } }
 
-.loop { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; list-style: none; padding: 0; margin: 0; counter-reset: s; }
-.loop li { counter-increment: s; display: grid; gap: 4px; }
-.loop li::before { content: counter(s); font: 700 13px/1 var(--f-mono); color: var(--torch); }
-.loop b { font: 700 14px/1.2 var(--f-display); letter-spacing: .03em; }
-.loop span { color: var(--dim); font-size: 14px; }
+.set { padding: 4px 16px; margin-bottom: 14px; }
+.set .item { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding-block: 12px; flex-wrap: wrap; }
+.set .item + .item { border-top: 1px solid var(--line); }
+.set label.t { font-weight: 600; }
+.set small { display: block; color: var(--dim); font-weight: 400; }
+.seg { display: inline-flex; border: 2px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: none; padding: 8px 12px; cursor: pointer; font-weight: 600; color: var(--dim); }
+.seg button[aria-pressed="true"] { background: var(--gold); color: var(--gold-ink); }
+.switch { width: 46px; height: 26px; border-radius: 13px; border: 0; background: var(--line); position: relative; cursor: pointer; flex: none; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--fg); transition: left .15s; }
+.switch[aria-checked="true"] { background: var(--ok); }
+.switch[aria-checked="true"]::after { left: 23px; }
+.set input[type="text"], .set textarea { padding: 10px 12px; border-radius: 8px; border: 2px solid var(--line); background: var(--bg); min-width: 0; width: 100%; max-width: 320px; }
+.set textarea { max-width: 100%; height: 70px; font: 12px/1.4 var(--mono); resize: vertical; }
+.stack { display: grid; gap: 8px; width: 100%; }
+.rowbtns { display: flex; gap: 8px; flex-wrap: wrap; }
 
-.perks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; list-style: none; padding: 0; margin: 0; }
-.perks li { display: grid; gap: 4px; }
-.perks b { font: 700 14px/1.2 var(--f-display); color: var(--gold); letter-spacing: .03em; }
-.perks span { color: var(--dim); font: 400 14px/1.4 var(--f-mono); }
-
-.apk { margin-top: 52px; display: flex; gap: 24px; align-items: center; justify-content: space-between; flex-wrap: wrap; border-color: var(--gold); }
-.apk h2 { margin-bottom: 4px; }
-.apk p { margin: 0; color: var(--dim); max-width: 54ch; }
-.apk ol { margin: 10px 0 0; padding-left: 20px; color: var(--dim); font-size: 14px; }
-footer { padding-block: 44px; color: var(--dim); font: 400 13px/1.6 var(--f-mono); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; border-top: 2px solid var(--brick); margin-top: 52px; }
-footer b { color: var(--fg); font-family: var(--f-display); letter-spacing: .05em; }
-
-@media (max-width: 900px) { .bestiary { grid-template-columns: repeat(3, minmax(0, 1fr)); } .loop { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 720px) { .split { grid-template-columns: minmax(0, 1fr); } .perks { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bestiary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 440px) { .perks, .loop { grid-template-columns: minmax(0, 1fr); } }
-@media (prefers-reduced-motion: reduce) { .sprite { animation: none; } .btn { transition: none; } }
+.player { position: fixed; inset: 0; z-index: 20; background: #000; display: grid; grid-template-rows: auto 1fr; }
+.player header { display: flex; align-items: center; gap: 12px; padding: calc(8px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 8px max(12px, env(safe-area-inset-left, 0px)); background: #0d0a14; color: #ece8f4; }
+.player header b { font-family: var(--mono); }
+.player header span { margin-left: auto; font: 13px var(--mono); color: #9a90b0; font-variant-numeric: tabular-nums; }
+.player header button { background: #2b2338; color: #ece8f4; border: 0; border-radius: 6px; padding: 8px 12px; cursor: pointer; font-weight: 700; }
+.player iframe { width: 100%; height: 100%; border: 0; display: block; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(90px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-weight: 600; z-index: 30; }
+.lite *, .lite *::after { transition: none !important; animation: none !important; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
-<div class="wrap">
-  <header class="hero">
-    <img class="sprite" src="icon.png" alt="Qahramon ritsar">
-    <div class="eyebrow">Piksel qala · Action RPG · Demo v0.2</div>
-    <h1>QAL'A RITSARI</h1>
-    <p class="tagline">Qilichingizni oling va qal'aning tubiga tushing. Har qavat yangi, har xonada eshiklar orqangizdan yopiladi.</p>
-    <div class="cta">
-      <a class="btn" href="#play" id="cta-play">▶ Brauzerda o'ynash</a>
-      <a class="btn ghost" href="https://github.com/Ulugbek-Ar/rust-oyin/releases/download/apk/QALA-RITSARI.apk" target="_blank" rel="noopener">⬇ APK yuklab olish <small>Android</small></a>
-    </div>
-  </header>
-
-  <div id="play">
-    <div class="stage" id="stage">
-      <button class="start" id="start" type="button" aria-label="O'yinni boshlash">
-        <img src="icon.png" alt="">
-        <span>QAL'AGA KIRISH</span>
-        <em>ovoz bilan · o'rnatish shart emas</em>
-      </button>
-    </div>
-    <div class="stage-bar">
-      <span>WASD yurish · J yoki sichqoncha: qilich · Space: sakrash · K: olov · Q: iksir</span>
-      <button type="button" id="fs">⛶ To'liq ekran</button>
-    </div>
+<header class="bar">
+  <div class="wrap">
+    <a class="brand" href="#bosh"><canvas class="px" id="logo" width="16" height="16"></canvas>PIKSEL QALA</a>
+    <nav class="tabs" aria-label="Bo'limlar">
+      <a href="#bosh" data-tab="bosh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>O'yinlar</a>
+      <a href="#kutubxona" data-tab="kutubxona"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16"/><rect x="10" y="4" width="5" height="16"/><path d="m17 5 4 1-3 14-4-1z"/></svg>Kutubxona</a>
+      <a href="#sozlamalar" data-tab="sozlamalar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Sozlamalar</a>
+    </nav>
   </div>
-
-  <section>
-    <h2>Qanday o'ynaladi</h2>
-    <p class="lead">Har qavat tasodifiy yaratiladi: 6 dan 13 tagacha xona, bitta xazina va bitta boss.</p>
-    <ol class="loop">
-      <li class="panel"><b>Xonaga kiring</b><span>Eshiklar panjara bilan yopiladi. Hammasini yengmaguncha ochilmaydi.</span></li>
-      <li class="panel"><b>Kombo bilan uring</b><span>Uch zarbali qilich kombosi. Uchinchi zarba 1.8 barobar kuchli va uzoqqa uloqtiradi.</span></li>
-      <li class="panel"><b>Xazinani toping</b><span>Sandiq qilichni 30% kuchaytiradi va iksir beradi. Mini-xaritada sariq.</span></li>
-      <li class="panel"><b>Bossni yenging</b><span>Qizil xonada Soya Lordi kutadi. Undan keyin portal keyingi qavatga olib tushadi.</span></li>
-    </ol>
-  </section>
-
-  <section>
-    <h2>Qal'a aholisi</h2>
-    <p class="lead">Ikkinchi qavatdan ritsarlar qo'shiladi. Har qavatda dushmanlar 45% qalinroq bo'ladi.</p>
-    <div class="bestiary">
-      <article class="panel foe"><canvas data-s="slime" width="16" height="16"></canvas><h3>Slime</h3><p>Sakrab-sakrab yaqinlashadi. 30 HP.</p></article>
-      <article class="panel foe"><canvas data-s="bat" width="16" height="16"></canvas><h3>Ko'rshapalak</h3><p>Ilonsimon uchadi, ustunlardan o'tadi. 18 HP.</p></article>
-      <article class="panel foe"><canvas data-s="skel" width="16" height="16"></canvas><h3>Skelet</h3><p>Masofani saqlaydi va kamondan otadi. 35 HP.</p></article>
-      <article class="panel foe"><canvas data-s="knight" width="16" height="16"></canvas><h3>Qora ritsar</h3><p>Sariq yonsa, chetga sakrang: hujumga otiladi. 60 HP.</p></article>
-      <article class="panel foe boss"><canvas data-s="boss" width="16" height="16"></canvas><h3>Soya Lordi</h3><p>Sehr halqalari, hamla va ko'rshapalak chaqirish. 650 HP.</p></article>
-    </div>
-  </section>
-
-  <section>
-    <h2>Boshqaruv</h2>
-    <div class="split">
-      <div class="panel">
-        <h3>KOMPYUTER</h3>
-        <dl class="keys">
-          <dt>W A S D</dt><dd>Yurish</dd>
-          <dt>J / Sichqoncha</dt><dd>Qilich: bosib tursangiz kombo davom etadi</dd>
-          <dt>Space</dt><dd>Sakrash: bu vaqtda zarar olmaysiz</dd>
-          <dt>K / O'ng tugma</dt><dd>Olov shari: 20 mana</dd>
-          <dt>Q</dt><dd>Iksir: HP ning yarmini tiklaydi</dd>
-        </dl>
-      </div>
-      <div class="panel">
-        <h3>TELEFON</h3>
-        <dl class="keys">
-          <dt>Chap tomon</dt><dd>Joystik: barmoq qo'ygan joyda paydo bo'ladi</dd>
-          <dt>HUJUM</dt><dd>Bosib turing, nishon yaqin dushmanga avtomatik olinadi</dd>
-          <dt>SAKRASH</dt><dd>Hujumlardan qochish</dd>
-          <dt>OLOV · IKSIR</dt><dd>Sehr va shifo</dd>
-        </dl>
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <h2>Qobiliyatlar</h2>
-    <p class="lead">Har darajada HP to'ladi, hujum +2 bo'ladi va uchta tasodifiy qobiliyatdan bittasini tanlaysiz.</p>
-    <ul class="perks">
-      <li class="panel"><b>Kuch</b><span>qilich zarari +25%</span></li>
-      <li class="panel"><b>Temir teri</b><span>maks. HP +30</span></li>
-      <li class="panel"><b>Chaqqonlik</b><span>tezlik +12%, sakrash tezroq</span></li>
-      <li class="panel"><b>Sehrgar</b><span>mana +30, tez tiklanadi</span></li>
-      <li class="panel"><b>Vampir</b><span>har zarbada +2 HP</span></li>
-      <li class="panel"><b>Kritik</b><span>kritik zarba ehtimoli +12%</span></li>
-    </ul>
-  </section>
-
-  <div class="panel apk">
-    <div>
-      <h2>Android uchun</h2>
-      <p>APK hajmi taxminan 1 MB, internet talab qilmaydi. Eski versiya o'rnatilgan bo'lsa, avval uni o'chiring.</p>
-      <ol>
-        <li>Faylni yuklab oling</li>
-        <li>"Noma'lum manbalar"ga ruxsat bering</li>
-        <li>Play Protect so'rasa, "Baribir o'rnatish"ni bosing</li>
-      </ol>
-    </div>
-    <a class="btn" href="https://github.com/Ulugbek-Ar/rust-oyin/releases/download/apk/QALA-RITSARI.apk" target="_blank" rel="noopener">⬇ Qal'a Ritsari APK</a>
-  </div>
-
-  <footer>
-    <span><b>PIKSEL QALA</b> · Qal'a Ritsari demo v0.2</span>
-    <span>Rust + macroquad · piksel-art, ovoz va musiqa kod bilan yaratilgan · <a href="https://github.com/Ulugbek-Ar/rust-oyin" target="_blank" rel="noopener">manba kodi</a></span>
-  </footer>
-</div>
+</header>
+<main class="wrap" id="view"></main>
 
 <script>
 (function () {
-  // same pixel art as the game, drawn into the bestiary cards
-  var P = { k:'#140c1c', y:'#ffd75a', h:'#c8d0de', H:'#788096', s:'#f2c79a', e:'#1e1428', b:'#3a6cd8', B:'#25418a', l:'#7a4a2a', L:'#52301c',
-    g:'#64d264', G:'#288c46', p:'#9650c8', r:'#f03c3c', w:'#ece8dc', d:'#482c68', R:'#c83232', D:'#781923', M:'#5a5a69', N:'#373744' };
-  var HERO = ["......kyk.......",".....kyyyk......","....kkhhhkk.....","...khhhhhhhk....","...khHhhhHhk....","...kHkkkkkHk....","...kHsesesHk....","...kHHsssHHk....","....kkHHHkk.....","..kbbbbybbbbk...",".ksbbbbybbbbsk..",".ksBbbbybbbBsk..","..kkBlllllBkk...","...kBBBkBBBk....","...kllk.kllk....","...kkkk.kkkk...."];
-  var S = {
-    slime: ["","","","","......kkkk......","....kkggggkk....","...kggggggggk...","..kggwwggwwggk..","..kggwkggwkggk..",".kggggggggggggk.",".kgGggggggggGgk.",".kgGGggggggGGgk.",".kGGGGGGGGGGGGk.","..kkkkkkkkkkkk.."],
-    bat: ["","","","","k......kk......k","kk....kppk....kk","kpk..kprprk..kpk","kppkkppppppkkppk","kppppppppppppppk",".kppppkppkppppk.","..kpk.kppk.kpk..","...k...kk...k..."],
-    skel: ["","......kkkk......",".....kwwwwk.....","....kwwwwwwk....","....kwkwwkwk....","....kwwwwwwk....",".....kwkwkk.....","......kwwk......","....kkwwwwkk.l..","...kwkwkkwkwkl..","...kwkwwwwkwkl..","....kkwkkwkk.l..",".....kwkkwk..l..",".....kwk.kwk....",".....kwk..kwk...","....kkk...kkk..."],
-    knight: HERO,
-    boss: ["......kkkk......","....kkddddkk....","...kddddddddk...","..kddddddddddk..","..kddkkkkkkddk..","..kdkrrkkrrkdk..","..kdkkkkkkkkdk..","..kddkkkkkkddk..",".kddddddddddddk.",".kdpddddddddpdk.","kddpddddddddpddk","kdppddddddddppdk","kdpddddddddddpdk","kddddpdddpddddk.",".kdddpdddpdddk..","..kkkkkkkkkkkk.."]
-  };
-  var KS = { b:'R', B:'D', h:'M', H:'N', y:'r', s:'k', e:'r' };
-  document.querySelectorAll('canvas[data-s]').forEach(function (c) {
-    var name = c.getAttribute('data-s'), rows = S[name], x = c.getContext('2d');
-    rows.forEach(function (row, yy) { for (var xx = 0; xx < row.length; xx++) {
-      var ch = row[xx]; if (name === 'knight' && KS[ch]) ch = KS[ch];
-      if (P[ch]) { x.fillStyle = P[ch]; x.fillRect(xx, yy, 1, 1); } } });
-  });
+  // ---------- data ----------
+  var REL = 'https://github.com/Ulugbek-Ar/rust-oyin/releases/download/apk/';
+  var GAMES = [
+    { id: 'ritsar', name: "Qal'a Ritsari", genre: 'Action RPG', created: '2026-11-21', updated: '2026-11-22',
+      apk: { url: REL + 'QALA-RITSARI.apk', mb: 1.7 }, web: { page: 'game.html', mb: 0.69 }, status: ['warn', 'Beta'],
+      note: "Android versiyasi hozir sinovda: ba'zi telefonlarda ochilmasligi mumkin. Brauzer versiyasi ishlaydi.",
+      desc: "Piksel zindon bo'ylab qilich bilan yo'l oching. Har qavat yangidan yaratiladi, oxirida Soya Lordi kutadi.",
+      feat: ["3 zarbali qilich kombosi, sakrash, olov sehri", "Tasodifiy qavatlar, xazina va boss", "Daraja va 6 xil qobiliyat"] },
+    { id: 'zulmat', name: 'Zulmat', genre: 'Arena survivor', created: '2026-11-21', updated: '2026-11-21',
+      apk: null, web: { page: 'neon.html', mb: 0.63 }, status: ['ok', 'Brauzerda'],
+      note: '',
+      desc: "Zulmatda yorug' nursiz. Soyalar to'lqin bo'lib keladi, siz o'q uzib, kuchayib borasiz.",
+      feat: ["4 xil dushman", "Har darajada kuchaytirish tanlash", "Neon grafika va sintez musiqa"] }
+  ];
+  var RANKS = [[0, "Yangi kelgan"], [10, "Shogird"], [30, "Jangchi"], [60, "Ritsar"], [180, "Qahramon"], [600, "Afsona"]];
 
-  var stage = document.getElementById('stage'), startBtn = document.getElementById('start');
-  function launch() {
-    if (stage.querySelector('iframe')) return;
-    var f = document.createElement('iframe');
-    f.src = 'game.html'; f.title = "Qal'a Ritsari o'yini"; f.allow = 'autoplay; fullscreen';
-    stage.appendChild(f); startBtn.hidden = true;
-    f.addEventListener('load', function () { try { f.contentWindow.focus(); f.contentDocument.getElementById('glcanvas').focus(); } catch (e) {} });
+  // ---------- storage (per browser) ----------
+  var KEY = 'pq-v1', st;
+  function load() { try { st = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { st = {}; } st.lib = st.lib || {}; st.set = st.set || {}; }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
+  load();
+
+  // ---------- pixel art ----------
+  var P = { k:'#140c1c', y:'#ffd75a', h:'#c8d0de', H:'#788096', s:'#f2c79a', e:'#1e1428', b:'#3a6cd8', B:'#25418a', l:'#7a4a2a',
+    g:'#64d264', G:'#288c46', w:'#ece8dc', p:'#9650c8', r:'#f03c3c', c:'#1d5f7a', C:'#7fe3ff', W:'#ffffff' };
+  var SPR = {
+    hero: ["......kyk.......",".....kyyyk......","....kkhhhkk.....","...khhhhhhhk....","...khHhhhHhk....","...kHkkkkkHk....","...kHsesesHk....","...kHHsssHHk....","....kkHHHkk.....","..kbbbbybbbbk...",".ksbbbbybbbbsk..",".ksBbbbybbbBsk..","..kkBlllllBkk...","...kBBBkBBBk....","...kllk.kllk....","...kkkk.kkkk...."],
+    slime: ["","","","","......kkkk......","....kkggggkk....","...kggggggggk...","..kggwwggwwggk..","..kggwkggwkggk..",".kggggggggggggk.",".kgGggggggggGgk.",".kgGGggggggGGgk.",".kGGGGGGGGGGGGk.","..kkkkkkkkkkkk.."],
+    skel: ["","......kkkk......",".....kwwwwk.....","....kwwwwwwk....","....kwkwwkwk....","....kwwwwwwk....",".....kwkwkk.....","......kwwk......","....kkwwwwkk.l..","...kwkwkkwkwkl..","...kwkwwwwkwkl..","....kkwkkwkk.l..",".....kwkkwk..l..",".....kwk.kwk....",".....kwk..kwk...","....kkk...kkk..."],
+    orb: ["","......cccc......","....ccCCCCcc....","...cCCCCCCCCc...","..cCCCWWWWCCCc..","..cCCWWWWWWCCc..",".cCCWWWWWWWWCCc.",".cCCWWWWWWWWCCc.",".cCCWWWWWWWWCCc.",".cCCWWWWWWWWCCc.","..cCCWWWWWWCCc..","..cCCCWWWWCCCc..","...cCCCCCCCCc...","....ccCCCCcc....","......cccc......"]
+  };
+  function blit(x, rows, ox, oy, sc) {
+    rows.forEach(function (row, yy) { for (var xx = 0; xx < row.length; xx++) { var c = P[row[xx]]; if (c) { x.fillStyle = c; x.fillRect(ox + xx * sc, oy + yy * sc, sc, sc); } } });
   }
-  startBtn.addEventListener('click', launch);
-  document.getElementById('cta-play').addEventListener('click', function () { setTimeout(launch, 300); });
-  document.getElementById('fs').addEventListener('click', function () {
-    launch();
-    var req = stage.requestFullscreen || stage.webkitRequestFullscreen;
-    if (req) { try { var r = req.call(stage); if (r && r.catch) r.catch(function () {}); } catch (e) {} }
-  });
+  function icon(cv, id) {
+    var x = cv.getContext('2d'); cv.width = cv.height = 16;
+    blit(x, id === 'zulmat' ? SPR.orb : SPR.hero, 0, 0, 1);
+  }
+  function cover(cv, id) {
+    var x = cv.getContext('2d'); cv.width = 160; cv.height = 90;
+    if (id === 'ritsar') {
+      x.fillStyle = '#241d30'; x.fillRect(0, 0, 160, 90);
+      for (var yy = 0; yy < 90; yy += 6) for (var xx = (yy / 6) % 2 ? -6 : 0; xx < 160; xx += 12) { x.fillStyle = (xx + yy) % 5 ? '#3a304a' : '#43385a'; x.fillRect(xx + 1, yy + 1, 10, 4); }
+      x.fillStyle = '#16111f'; x.fillRect(0, 58, 160, 32);
+      for (var i = 0; i < 160; i += 16) { x.fillStyle = i % 32 ? '#1c1626' : '#201a2c'; x.fillRect(i, 58, 15, 32); }
+      [[30, 22], [130, 22]].forEach(function (t) { var g = x.createRadialGradient(t[0], t[1], 1, t[0], t[1], 22); g.addColorStop(0, 'rgba(255,170,60,.55)'); g.addColorStop(1, 'rgba(255,170,60,0)'); x.fillStyle = g; x.fillRect(t[0] - 22, t[1] - 22, 44, 44); x.fillStyle = '#ffd27a'; x.fillRect(t[0] - 1, t[1] - 2, 3, 4); });
+      blit(x, SPR.hero, 58, 30, 2); blit(x, SPR.slime, 108, 46, 1.5); blit(x, SPR.skel, 16, 40, 1.5);
+    } else {
+      x.fillStyle = '#05050f'; x.fillRect(0, 0, 160, 90);
+      x.strokeStyle = '#1d2350'; x.lineWidth = 1;
+      for (var gx = 0; gx <= 160; gx += 16) { x.beginPath(); x.moveTo(gx + .5, 0); x.lineTo(gx + .5, 90); x.stroke(); }
+      for (var gy = 0; gy <= 90; gy += 16) { x.beginPath(); x.moveTo(0, gy + .5); x.lineTo(160, gy + .5); x.stroke(); }
+      var g2 = x.createRadialGradient(80, 45, 2, 80, 45, 34); g2.addColorStop(0, 'rgba(127,227,255,.6)'); g2.addColorStop(1, 'rgba(127,227,255,0)'); x.fillStyle = g2; x.fillRect(40, 5, 80, 80);
+      blit(x, SPR.orb, 68, 33, 1.5);
+      [['#ff4066', 3, 30, 22, 9], ['#ffd933', 4, 128, 26, 8], ['#ff8019', 5, 124, 70, 9], ['#b34dff', 6, 36, 68, 10]].forEach(function (f) {
+        x.strokeStyle = f[0]; x.lineWidth = 2; x.beginPath();
+        for (var k = 0; k <= f[1]; k++) { var a = k / f[1] * Math.PI * 2; var px = f[2] + Math.cos(a) * f[4], py = f[3] + Math.sin(a) * f[4]; k ? x.lineTo(px, py) : x.moveTo(px, py); }
+        x.stroke(); });
+    }
+  }
+  function badge(cv, mins) {
+    var x = cv.getContext('2d'); cv.width = cv.height = 16; var lvl = rankIndex(mins);
+    var cols = ['#788096', '#7a4a2a', '#c8d0de', '#3a6cd8', '#9650c8', '#ffd75a'];
+    var shield = ["..kkkkkkkkkkkk..",".kXXXXXXXXXXXXk.",".kXXXXXXXXXXXXk.",".kXXXXXXXXXXXXk.",".kXXXXXXXXXXXXk.",".kXXXXXXXXXXXXk.","..kXXXXXXXXXXk..","..kXXXXXXXXXXk..","...kXXXXXXXXk...","....kXXXXXXk....",".....kXXXXk.....","......kkkk......"];
+    P.X = cols[lvl]; blit(x, shield, 0, 2, 1);
+    x.fillStyle = '#ffffff'; for (var i = 0; i < lvl; i++) x.fillRect(3 + i * 2, 5, 1, 3);
+  }
+
+  // ---------- helpers ----------
+  function el(html) { var d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstChild; }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function game(id) { return GAMES.filter(function (g) { return g.id === id; })[0]; }
+  var MON = ['yan', 'fev', 'mar', 'apr', 'may', 'iyn', 'iyl', 'avg', 'sen', 'okt', 'noy', 'dek'];
+  function fdate(v) { var d = new Date(v); return d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear(); }
+  function ftime(sec) { var m = Math.floor(sec / 60); if (m < 1) return sec + ' s'; if (m < 60) return m + ' daq'; return Math.floor(m / 60) + ' soat ' + (m % 60) + ' daq'; }
+  function rankIndex(mins) { var i = 0; RANKS.forEach(function (r, j) { if (mins >= r[0]) i = j; }); return i; }
+  function totalSec() { var t = 0; for (var k in st.lib) t += st.lib[k].sec || 0; return t; }
+  function toast(msg) { var t = el('<div class="toast" role="status"></div>'); t.textContent = msg; document.body.appendChild(t); setTimeout(function () { t.remove(); }, 2200); }
+  function install(g) {
+    if (!st.lib[g.id]) { st.lib[g.id] = { at: Date.now(), sec: 0, plays: 0 }; save(); toast(g.name + ' kutubxonaga qo\'shildi'); }
+  }
+
+  // ---------- views ----------
+  var view = document.getElementById('view'), query = '';
+  function home() {
+    view.innerHTML = '<h1>O\'yinlar</h1><p class="sub">Piksel Qala studiyasining barcha o\'yinlari. Rust tilida yozilgan, kichik va tez.</p>' +
+      '<form class="search" role="search"><input id="q" type="search" placeholder="O\'yin nomi yoki janr..." autocomplete="off" aria-label="Qidirish"><button class="btn" type="submit">Qidirish</button></form><div class="grid" id="list"></div>';
+    var q = document.getElementById('q'); q.value = query;
+    function draw() {
+      var list = document.getElementById('list'); list.innerHTML = '';
+      var s = query.toLowerCase();
+      var found = GAMES.filter(function (g) { return !s || (g.name + ' ' + g.genre + ' ' + g.desc).toLowerCase().indexOf(s) >= 0; });
+      if (!found.length) { list.appendChild(el('<div class="panel empty">"' + esc(query) + '" bo\'yicha o\'yin topilmadi.</div>')); return; }
+      found.forEach(function (g) {
+        var size = g.apk ? g.apk.mb + ' MB APK' : g.web.mb + ' MB';
+        var c = el('<a class="panel card" href="#o-' + g.id + '"><canvas class="px"></canvas><div class="body"><div class="row"><b>' + esc(g.name) + '</b><span class="tag ' + g.status[0] + '">' + g.status[1] + '</span></div>' +
+          '<div class="meta"><span>' + g.genre + '</span><span>' + size + '</span>' + (st.lib[g.id] ? '<span>✓ o\'rnatilgan</span>' : '') + '</div></div></a>');
+        cover(c.querySelector('canvas'), g.id); list.appendChild(c);
+      });
+    }
+    q.addEventListener('input', function () { query = q.value; draw(); });
+    view.querySelector('form').addEventListener('submit', function (e) { e.preventDefault(); query = q.value; draw(); });
+    draw();
+  }
+
+  function detail(g) {
+    var inst = st.lib[g.id];
+    view.innerHTML = '<a class="back" href="#bosh">← O\'yinlar</a><div class="detail"><div><div class="cover"><canvas class="px"></canvas></div>' +
+      '<h1 style="margin-top:14px">' + esc(g.name) + '</h1><p class="sub" style="margin:0">' + g.genre + '</p><p>' + esc(g.desc) + '</p><ul class="feat">' +
+      g.feat.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ul></div>' +
+      '<div class="panel"><dl class="facts">' +
+      '<dt>Yaratilgan</dt><dd>' + fdate(g.created) + '</dd><dt>Yangilangan</dt><dd>' + fdate(g.updated) + '</dd>' +
+      (g.apk ? '<dt>Android (APK)</dt><dd>' + g.apk.mb + ' MB</dd>' : '') + '<dt>Brauzer versiyasi</dt><dd>' + g.web.mb + ' MB</dd>' +
+      '<dt>Holat</dt><dd>' + g.status[1] + '</dd>' + (inst ? '<dt>O\'ynalgan</dt><dd>' + ftime(inst.sec) + '</dd>' : '') + '</dl>' +
+      '<div class="actions">' + (g.note ? '<p class="note">' + esc(g.note) + '</p>' : '') +
+      '<button class="btn wide" id="play" type="button">▶ Brauzerda o\'ynash</button>' +
+      (g.apk ? '<a class="btn ghost wide" id="apk" href="' + g.apk.url + '" target="_blank" rel="noopener">⬇ O\'rnatish (Android, ' + g.apk.mb + ' MB)</a>'
+             : '<button class="btn ghost wide" id="add" type="button"' + (inst ? ' disabled' : '') + '>' + (inst ? '✓ Kutubxonada' : '+ Kutubxonaga qo\'shish') + '</button>') +
+      '</div></div></div>';
+    cover(view.querySelector('canvas'), g.id);
+    document.getElementById('play').onclick = function () { play(g); };
+    var a = document.getElementById('apk'); if (a) a.addEventListener('click', function () { install(g); });
+    var b = document.getElementById('add'); if (b) b.onclick = function () { install(g); detail(g); };
+  }
+
+  function library() {
+    var tot = totalSec(), mins = Math.floor(tot / 60), ri = rankIndex(mins), next = RANKS[ri + 1];
+    var pct = next ? Math.min(100, (mins - RANKS[ri][0]) / (next[0] - RANKS[ri][0]) * 100) : 100;
+    var nick = st.set.nick || 'O\'yinchi';
+    view.innerHTML = '<h1>Kutubxona</h1><p class="sub">O\'rnatgan o\'yinlaringiz, o\'ynagan vaqtingiz va unvoningiz.</p>' +
+      '<div class="panel profile"><canvas class="px badge" id="badge"></canvas><div><div class="meta"><span>' + esc(nick) + '</span><span>Jami: ' + ftime(tot) + '</span></div>' +
+      '<div class="rank">' + RANKS[ri][1] + '</div><div class="prog"><i style="width:' + pct + '%"></i></div>' +
+      '<div class="meta" style="margin-top:6px">' + (next ? 'Keyingi unvon: ' + next[1] + ' (' + (next[0] - mins) + ' daqiqa qoldi)' : 'Eng yuqori unvon!') + '</div></div></div>' +
+      '<h2>O\'yinlarim</h2><div class="panel" id="lib"></div>';
+    badge(document.getElementById('badge'), mins);
+    var lib = document.getElementById('lib'), ids = Object.keys(st.lib);
+    if (!ids.length) { lib.appendChild(el('<div class="empty">Hali o\'yin yo\'q. <a href="#bosh">O\'yinlar</a> bo\'limidan birini tanlang va o\'ynab ko\'ring.</div>')); return; }
+    ids.sort(function (a, b) { return (st.lib[b].last || st.lib[b].at) - (st.lib[a].last || st.lib[a].at); }).forEach(function (id) {
+      var g = game(id), r = st.lib[id]; if (!g) return;
+      var gm = Math.floor(r.sec / 60);
+      var it = el('<div class="libitem"><canvas class="px"></canvas><div style="min-width:0"><b>' + esc(g.name) + '</b> <span class="tag">' + RANKS[rankIndex(gm)][1] + '</span>' +
+        '<div class="meta"><span>O\'rnatilgan: ' + fdate(r.at) + '</span><span>O\'ynalgan: ' + ftime(r.sec) + '</span><span>' + (r.plays || 0) + ' marta</span></div></div>' +
+        '<button class="btn" type="button">▶ O\'ynash</button></div>');
+      icon(it.querySelector('canvas'), id); it.querySelector('button').onclick = function () { play(g); }; lib.appendChild(it);
+    });
+  }
+
+  function settings() {
+    var s = st.set, skin = s.skin || 'auto';
+    view.innerHTML = '<h1>Sozlamalar</h1><p class="sub">Hammasi faqat shu brauzerda saqlanadi.</p>' +
+      '<h2>Profil</h2><div class="panel set"><div class="item"><label class="t" for="nick">Taxallus<small>Kutubxonada ko\'rinadi</small></label><input id="nick" type="text" maxlength="20" placeholder="O\'yinchi"></div></div>' +
+      '<h2>Ko\'rinish</h2><div class="panel set"><div class="item"><span class="t">Mavzu</span><div class="seg" id="skin">' +
+      [['auto', 'Avto'], ['dark', 'Qorong\'u'], ['light', 'Yorug\'']].map(function (o) { return '<button type="button" data-v="' + o[0] + '" aria-pressed="' + (skin === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div></div>' +
+      '<div class="item"><span class="t" id="l-lite">Tejamkor rejim<small>Animatsiyalarsiz. Kuchsiz telefon va sekin internet uchun</small></span><button class="switch" id="lite" role="switch" aria-labelledby="l-lite" aria-checked="' + !!s.lite + '"></button></div></div>' +
+      '<h2>O\'yin</h2><div class="panel set"><div class="item"><span class="t" id="l-fs">To\'liq ekranda ochish<small>O\'ynash bosilganda (kompyuterda)</small></span><button class="switch" id="fs" role="switch" aria-labelledby="l-fs" aria-checked="' + !!s.fs + '"></button></div></div>' +
+      '<h2>Ma\'lumotlar</h2><div class="panel set"><div class="item"><div class="stack"><span class="t">Zaxira nusxa<small>Kodni nusxalab saqlang. Boshqa qurilmada "Tiklash" orqali kutubxonani qaytaring</small></span>' +
+      '<textarea id="code" aria-label="Zaxira kodi"></textarea><div class="rowbtns"><button class="btn ghost" id="exp" type="button">Kodni olish</button><button class="btn ghost" id="copy" type="button">Nusxalash</button><button class="btn ghost" id="imp" type="button">Tiklash</button></div></div></div>' +
+      '<div class="item"><span class="t">Kutubxonani tozalash<small>O\'yinlar va o\'ynalgan vaqt o\'chadi</small></span><button class="btn danger" id="wipe" type="button">Tozalash</button></div></div>' +
+      '<h2>Ilova haqida</h2><div class="panel set"><div class="item"><span class="t">Piksel Qala</span><span class="meta">v1.0 · sahifa ' + Math.round(document.documentElement.outerHTML.length / 1024) + ' KB · ' + GAMES.length + ' o\'yin</span></div></div>';
+    var nick = document.getElementById('nick'); nick.value = s.nick || '';
+    nick.addEventListener('change', function () { s.nick = nick.value.trim(); save(); toast('Saqlandi'); });
+    document.querySelectorAll('#skin button').forEach(function (b) { b.onclick = function () { s.skin = b.dataset.v; save(); applySet(); settings(); }; });
+    ['lite', 'fs'].forEach(function (k) { var b = document.getElementById(k); b.onclick = function () { s[k] = !s[k]; save(); applySet(); b.setAttribute('aria-checked', !!s[k]); }; });
+    var code = document.getElementById('code');
+    document.getElementById('exp').onclick = function () { code.value = btoa(unescape(encodeURIComponent(JSON.stringify(st)))); };
+    document.getElementById('copy').onclick = function () {
+      if (!code.value) code.value = btoa(unescape(encodeURIComponent(JSON.stringify(st))));
+      try { navigator.clipboard.writeText(code.value).then(function () { toast('Nusxalandi'); }, function () { code.select(); toast('Belgilandi: nusxalang'); }); } catch (e) { code.select(); }
+    };
+    document.getElementById('imp').onclick = function () {
+      try { var d = JSON.parse(decodeURIComponent(escape(atob(code.value.trim())))); if (!d.lib) throw 0; st = d; st.set = st.set || {}; save(); applySet(); toast('Kutubxona tiklandi'); settings(); }
+      catch (e) { toast('Kod noto\'g\'ri. Uni to\'liq nusxalaganingizni tekshiring'); }
+    };
+    var w = document.getElementById('wipe'), armed = false;
+    w.onclick = function () { if (!armed) { armed = true; w.textContent = 'Ishonchingiz komilmi? Yana bosing'; setTimeout(function () { armed = false; w.textContent = 'Tozalash'; }, 4000); return; }
+      st.lib = {}; save(); toast('Kutubxona tozalandi'); settings(); };
+  }
+
+  // ---------- player (play in browser, counts play time) ----------
+  function play(g) {
+    install(g);
+    var r = st.lib[g.id]; r.plays = (r.plays || 0) + 1; r.last = Date.now(); save();
+    var p = el('<div class="player" role="dialog" aria-label="' + esc(g.name) + '"><header><b>' + esc(g.name) + '</b><span id="pt">0:00</span><button type="button" id="close">✕ Chiqish</button></header><iframe allow="autoplay; fullscreen" title="' + esc(g.name) + '"></iframe></div>');
+    document.body.appendChild(p);
+    var f = p.querySelector('iframe'); f.src = g.web.page;
+    f.addEventListener('load', function () { try { f.contentWindow.focus(); f.contentDocument.getElementById('glcanvas').focus(); } catch (e) {} });
+    if (st.set.fs && p.requestFullscreen) { try { var q = p.requestFullscreen(); if (q && q.catch) q.catch(function () {}); } catch (e) {} }
+    var sess = 0, tick = setInterval(function () {
+      if (document.visibilityState !== 'visible') return;
+      sess++; r.sec = (r.sec || 0) + 1; if (sess % 5 === 0) save();
+      document.getElementById('pt').textContent = Math.floor(sess / 60) + ':' + ('0' + sess % 60).slice(-2);
+    }, 1000);
+    function close() { clearInterval(tick); save(); if (document.fullscreenElement) { try { document.exitFullscreen(); } catch (e) {} } p.remove(); document.removeEventListener('keydown', esc2); route(); }
+    function esc2(e) { if (e.key === 'Escape' && !document.fullscreenElement) close(); }
+    document.getElementById('close').onclick = close; document.addEventListener('keydown', esc2);
+  }
+
+  // ---------- routing ----------
+  function applySet() {
+    var root = document.documentElement, s = st.set;
+    if (s.skin === 'dark' || s.skin === 'light') root.setAttribute('data-skin', s.skin); else root.removeAttribute('data-skin');
+    document.body.classList.toggle('lite', !!s.lite);
+  }
+  function route() {
+    var h = (location.hash || '#bosh').slice(1), tab = h;
+    if (h.indexOf('o-') === 0 && game(h.slice(2))) { detail(game(h.slice(2))); tab = 'bosh'; }
+    else if (h === 'kutubxona') library(); else if (h === 'sozlamalar') settings(); else { home(); tab = 'bosh'; }
+    document.querySelectorAll('nav.tabs a').forEach(function (a) { if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    window.scrollTo(0, 0);
+  }
+  icon(document.getElementById('logo'), 'ritsar');
+  applySet();
+  window.addEventListener('hashchange', route);
+  route();
 })();
 </script>
