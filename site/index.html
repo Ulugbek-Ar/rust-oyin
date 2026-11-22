@@ -132,6 +132,11 @@ ul.feat { margin: 10px 0 0; padding-left: 18px; color: var(--dim); }
   // ---------- data ----------
   var REL = 'https://github.com/Ulugbek-Ar/rust-oyin/releases/download/apk/';
   var GAMES = [
+    { id: 'hokkey', name: 'Neon Hokkey', genre: '2 kishilik', created: '2026-11-22', updated: '2026-11-22',
+      apk: null, web: { page: 'hokkey.html', mb: 0.6 }, status: ['ok', 'Yangi · 2 kishi'],
+      note: "Android APK yig'ilmoqda va emulyatorda sinalmoqda. Hozircha brauzerda o'ynang.",
+      desc: "Bitta ekranda do'stingiz bilan neon havo hokkeyi. Har kim o'z yarmida barmog'i bilan raketkasini suradi. Yolg'iz bo'lsangiz, botga qarshi o'ynang.",
+      feat: ["Bitta telefonda 2 kishi (multitach) yoki botga qarshi", "Neon nur, shayba izi, gol portlashlari", "7 golgacha, bot yutqazayotganda kuchayadi"] },
     { id: 'ajdar', name: 'Ajdar Parvozi', genre: '3D parvoz', created: '2026-11-22', updated: '2026-11-22',
       apk: { url: REL + 'AJDAR-PARVOZI.apk', mb: 1.6 }, web: { page: 'ajdar.html', mb: 0.63 }, status: ['ok', 'Yangi · 3D'],
       note: '',
@@ -170,6 +175,8 @@ ul.feat { margin: 10px 0 0; padding-left: 18px; color: var(--dim); }
   }
   function icon(cv, id) {
     var x = cv.getContext('2d'); cv.width = cv.height = 16;
+    if (id === 'hokkey') { x.fillStyle = '#0a0b1a'; x.fillRect(0, 0, 16, 16); x.strokeStyle = '#40d9ff'; x.lineWidth = 1.5; x.beginPath(); x.arc(5, 8, 3, 0, 7); x.stroke();
+      x.strokeStyle = '#ff4db3'; x.beginPath(); x.arc(11, 6, 2.5, 0, 7); x.stroke(); x.fillStyle = '#ffdc78'; x.fillRect(10, 10, 3, 3); return; }
     if (id === 'ajdar') { x.fillStyle = '#b84d6b'; x.fillRect(0, 0, 16, 16); x.fillStyle = '#ffe0a0'; x.fillRect(6, 10, 4, 3);
       x.fillStyle = '#962e3e'; x.beginPath(); x.moveTo(8, 7); x.lineTo(1, 4); x.lineTo(5, 9); x.moveTo(8, 7); x.lineTo(15, 4); x.lineTo(11, 9); x.fill();
       x.fillStyle = '#ce2c2c'; x.beginPath(); x.moveTo(8, 3); x.lineTo(6, 8); x.lineTo(8, 11); x.lineTo(10, 8); x.fill(); return; }
@@ -177,6 +184,17 @@ ul.feat { margin: 10px 0 0; padding-left: 18px; color: var(--dim); }
   }
   function cover(cv, id) {
     var x = cv.getContext('2d'); cv.width = 160; cv.height = 90;
+    if (id === 'hokkey') {
+      x.fillStyle = '#05050f'; x.fillRect(0, 0, 160, 90); x.fillStyle = '#0d0f22'; x.fillRect(10, 8, 140, 74);
+      function gl(c, f) { x.shadowColor = c; x.shadowBlur = 8; x.strokeStyle = c; x.lineWidth = 1.5; x.beginPath(); f(); x.stroke(); x.shadowBlur = 0; }
+      gl('#40d9ff', function () { x.moveTo(80, 8); x.lineTo(10, 8); x.lineTo(10, 32); x.moveTo(10, 58); x.lineTo(10, 82); x.lineTo(80, 82); });
+      gl('#ff4db3', function () { x.moveTo(80, 8); x.lineTo(150, 8); x.lineTo(150, 32); x.moveTo(150, 58); x.lineTo(150, 82); x.lineTo(80, 82); });
+      gl('rgba(200,200,255,.6)', function () { x.moveTo(80, 8); x.lineTo(80, 82); x.moveTo(91, 45); x.arc(80, 45, 11, 0, 7); });
+      gl('#40d9ff', function () { x.arc(38, 50, 8, 0, 7); }); x.fillStyle = '#40d9ff'; x.beginPath(); x.arc(38, 50, 3, 0, 7); x.fill();
+      gl('#ff4db3', function () { x.arc(124, 36, 8, 0, 7); }); x.fillStyle = '#ff4db3'; x.beginPath(); x.arc(124, 36, 3, 0, 7); x.fill();
+      x.shadowColor = '#ffdc78'; x.shadowBlur = 10; x.fillStyle = '#fff3c0'; x.beginPath(); x.arc(62, 40, 4, 0, 7); x.fill(); x.shadowBlur = 0;
+      return;
+    }
     if (id === 'ajdar') {
       var sky = x.createLinearGradient(0, 0, 0, 90); sky.addColorStop(0, '#28144a'); sky.addColorStop(.55, '#b84d6b'); sky.addColorStop(1, '#ff9e61');
       x.fillStyle = sky; x.fillRect(0, 0, 160, 90);

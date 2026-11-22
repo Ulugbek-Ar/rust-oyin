@@ -32,3 +32,5 @@ site/mq_js_bundle.js
 site/neon.wasm
 ajdar/target/
 site/ajdar.wasm
+hokkey/target/
+site/hokkey.wasm

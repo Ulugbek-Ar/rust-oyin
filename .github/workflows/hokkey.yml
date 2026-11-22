@@ -1,0 +1,74 @@
+name: Neon Hokkey APK
+
+on:
+  push:
+    branches: [main, ccr-6beb9320-7sxxbq]
+    paths: ['hokkey/**', '.github/workflows/hokkey.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build APK (cargo-quad-apk)
+        run: |
+          docker run --rm -v "$PWD/hokkey":/root/src -w /root/src notfl3/cargo-apk \
+            bash -c "rustup update stable && rustup default stable && \
+                     rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android && \
+                     cargo quad-apk build --release"
+          sudo cp hokkey/target/android-artifacts/release/apk/hokkey.apk raw.apk
+          sudo chown $USER raw.apk
+      - name: Sign APK (zipalign + apksigner)
+        run: |
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          zip -q -d raw.apk 'META-INF/*' || true
+          $BT/zipalign -f -p 4 raw.apk aligned.apk
+          keytool -genkeypair -keystore k.jks -storepass hokkey123 -keypass hokkey123 -alias hokkey \
+            -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Piksel Qala, O=Piksel Qala, C=UZ"
+          $BT/apksigner sign --ks k.jks --ks-pass pass:hokkey123 --key-pass pass:hokkey123 --out NEON-HOKKEY.apk aligned.apk
+          $BT/apksigner verify NEON-HOKKEY.apk
+          $BT/aapt dump badging NEON-HOKKEY.apk | grep -E "package:|application:|native-code"
+          ls -lh NEON-HOKKEY.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NEON-HOKKEY-apk
+          path: NEON-HOKKEY.apk
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk
+          files: NEON-HOKKEY.apk
+          overwrite_files: true
+
+  emulator-test:
+    needs: apk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: NEON-HOKKEY-apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 31
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            sleep 20
+            adb install -r NEON-HOKKEY.apk
+            adb logcat -c
+            adb shell am start -W -n uz.pikselqala.hokkey/.MainActivity
+            sleep 20
+            adb shell pidof uz.pikselqala.hokkey || echo "=== PROCESS NOT RUNNING ==="
+            echo "=== CRASH BUFFER ===" && adb logcat -b crash -d | tail -40
+            echo "=== APP LOG ===" && adb logcat -d -v brief | grep -E "ZQ|SAPP|AndroidRuntime" | tail -40
