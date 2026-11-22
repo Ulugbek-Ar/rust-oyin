@@ -72,6 +72,28 @@ fn sprite_img(rows: &[&str], size: u16, swap: &[(char, char)]) -> Image {
     }
     img
 }
+fn img_rows(rows: &[String], size: u16, swap: &[(char, char)], white: bool) -> Image {
+    let r: Vec<&str> = rows.iter().map(|x| x.as_str()).collect();
+    let mut img = sprite_img(&r, size, swap);
+    if white { for y in 0..size as u32 { for x in 0..size as u32 { if img.get_pixel(x, y).a > 0.0 { img.set_pixel(x, y, WHITE); } } } }
+    img
+}
+fn owned(rows: &[&str]) -> Vec<String> { rows.iter().map(|x| x.to_string()).collect() }
+fn legs(rows: &[&str], a: &str, b: &str, c: &str) -> Vec<String> { let mut v = owned(rows); let n = v.len(); v[n - 3] = a.into(); v[n - 2] = b.into(); v[n - 1] = c.into(); v }
+const BAT_UP: [&str; 12] = ["", "", "", "k..............k", "kk.....kk.....kk", "kpk...kppk...kpk", "kppk.kprprk.kppk", ".kppkppppppkppk.", "..kpppppppppppk.", "...kppkppkppk...", "....k.kppk.k....", ".......kk......."];
+const BAT_DN: [&str; 12] = ["", "", "", "", "", ".......kk.......", "......kppk......", ".....kprprk.....", "..kkkppppppkkk..", ".kpppppppppppppk", "kppk.kppppk.kppk", "kpk...kppk...kpk"];
+fn walk3(rows: &[&str], swap: &[(char, char)], skel: bool) -> [Texture2D; 3] {
+    let (a, b) = if skel {
+        (legs(rows, "....kwk...kwk...", "...kwk.....kwk..", "..kkk......kkk.."), legs(rows, ".....kwkkwk.....", ".....kwkkwk.....", "....kkkkkkkk...."))
+    } else {
+        (legs(rows, "..kBBBk.kBBBk...", "..kllk...kllk...", "..kkkk...kkkk..."), legs(rows, "....kBBkBBk.....", "....kllkllk.....", "....kkkkkkk....."))
+    };
+    [tex(&img_rows(&owned(rows), 16, swap, false)), tex(&img_rows(&a, 16, swap, false)), tex(&img_rows(&b, 16, swap, false))]
+}
+fn white(rows: &[&str], size: u16, swap: &[(char, char)]) -> Texture2D { tex(&img_rows(&owned(rows), size, swap, true)) }
+fn spr2(t: &Texture2D, x: f32, y: f32, w: f32, h: f32, tint: Color, flip: bool) {
+    draw_texture_ex(t, x, y, tint, DrawTextureParams { dest_size: Some(vec2(w, h)), flip_x: flip, ..Default::default() });
+}
 fn tex(img: &Image) -> Texture2D { let t = Texture2D::from_image(img); t.set_filter(FilterMode::Nearest); t }
 fn floor_tex(seed: u32) -> Texture2D {
     let mut img = Image::gen_image_color(16, 16, rgb(36, 32, 48));
@@ -109,16 +131,20 @@ fn wall_tex() -> Texture2D {
     tex(&img)
 }
 
-struct Art { merchant: Texture2D, hero: Texture2D, knight: Texture2D, slime: Texture2D, bat: Texture2D, skel: Texture2D, boss: Texture2D,
+struct Art { hero_f: [Texture2D; 3], knight_f: [Texture2D; 3], skel_f: [Texture2D; 3], bat_f: [Texture2D; 3],
+    hero_w: Texture2D, knight_w: Texture2D, skel_w: Texture2D, slime_w: Texture2D, bat_w: Texture2D, boss_w: Texture2D,
+    merchant: Texture2D, slime: Texture2D, boss: Texture2D,
     coin: Texture2D, potion: Texture2D, heart: Texture2D, chest: Texture2D, floor: [Texture2D; 3], wall: Texture2D }
 const KNIGHT_SWAP: [(char, char); 7] = [('b', 'R'), ('B', 'D'), ('h', 'M'), ('H', 'N'), ('y', 'r'), ('s', 'k'), ('e', 'r')];
 impl Art {
     fn load() -> Art {
         Art {
+            hero_f: walk3(&HERO, &[], false), knight_f: walk3(&HERO, &KNIGHT_SWAP, false), skel_f: walk3(&SKEL, &[], true),
+            bat_f: [tex(&sprite_img(&BAT, 16, &[])), tex(&sprite_img(&BAT_UP, 16, &[])), tex(&sprite_img(&BAT_DN, 16, &[]))],
+            hero_w: white(&HERO, 16, &[]), knight_w: white(&HERO, 16, &KNIGHT_SWAP), skel_w: white(&SKEL, 16, &[]),
+            slime_w: white(&SLIME, 16, &[]), bat_w: white(&BAT, 16, &[]), boss_w: white(&BOSS, 16, &[]),
             merchant: tex(&sprite_img(&HERO, 16, &[('b', 'p'), ('B', 'd'), ('h', 'y'), ('H', 'l'), ('y', 'r')])),
-            hero: tex(&sprite_img(&HERO, 16, &[])), knight: tex(&sprite_img(&HERO, 16, &KNIGHT_SWAP)),
-            slime: tex(&sprite_img(&SLIME, 16, &[])), bat: tex(&sprite_img(&BAT, 16, &[])),
-            skel: tex(&sprite_img(&SKEL, 16, &[])), boss: tex(&sprite_img(&BOSS, 16, &[])),
+            slime: tex(&sprite_img(&SLIME, 16, &[])), boss: tex(&sprite_img(&BOSS, 16, &[])),
             coin: tex(&sprite_img(&COIN, 8, &[])), potion: tex(&sprite_img(&POTION, 8, &[])),
             heart: tex(&sprite_img(&HEART, 8, &[])), chest: tex(&sprite_img(&CHEST, 16, &[])),
             floor: [floor_tex(0), floor_tex(1), floor_tex(2)], wall: wall_tex(),
@@ -216,6 +242,7 @@ enum IK { Coin(u32), Potion, Heart }
 struct Item { pos: Vec2, vel: Vec2, kind: IK }
 struct FText { pos: Vec2, s: String, col: Color, life: f32 }
 struct Particle { p: Vec2, v: Vec2, life: f32, max: f32, size: f32, col: Color }
+struct Corpse { kind: EK, bv: u8, pos: Vec2, t: f32, flip: bool }
 
 struct Player { pos: Vec2, vel: Vec2, face: Vec2, hp: f32, max_hp: f32, mp: f32, max_mp: f32, mp_regen: f32, atk: f32,
     crit: f32, vamp: f32, speed: f32, level: u32, xp: f32, xp_need: f32, gold: u32, potions: u32, inv: f32,
@@ -257,6 +284,7 @@ struct Game {
     items: Vec<Item>, parts: Vec<Particle>, texts: Vec<FText>, t: f32, over_t: f32, shake: f32, hitstop: f32, fade: f32,
     kills: u32, choices: [usize; 3], touch_mode: bool, stick: Option<(u64, Vec2, Vec2)>, atk_touch: Option<u64>,
     btn: [bool; 4], best_floor: u32, boss_t: f32, shop_in: Option<usize>,
+    corpses: Vec<Corpse>, lock_anim: f32, chest_t: f32,
 }
 
 fn room_center() -> Vec2 { vec2(RW as f32 * T / 2.0, RH as f32 * T / 2.0) }
@@ -279,7 +307,7 @@ impl Game {
             combo: 0, combo_t: 0.0, walk_t: 0.0 };
         let mut g = Game { state: State::Title, floor: 1, rooms: gen_floor(1), cur: 0, p, enemies: vec![], shots: vec![],
             items: vec![], parts: vec![], texts: vec![], t: 0.0, over_t: 0.0, shake: 0.0, hitstop: 0.0, fade: 0.6, kills: 0,
-            choices: [0, 1, 2], touch_mode, stick: None, atk_touch: None, btn: [false; 4], best_floor, boss_t: 0.0, shop_in: None };
+            choices: [0, 1, 2], touch_mode, stick: None, atk_touch: None, btn: [false; 4], best_floor, boss_t: 0.0, shop_in: None, corpses: vec![], lock_anim: 0.0, chest_t: -1.0 };
         g.rooms[0].visited = true;
         g
     }
@@ -498,7 +526,22 @@ impl Game {
             let spd = self.p.speed * if self.p.swing > 0.0 { 0.35 } else { 1.0 };
             self.p.vel = self.p.vel.lerp(dir * spd, (dt * 14.0).min(1.0));
         }
-        if self.p.vel.length() > 10.0 { self.p.walk_t += dt; }
+        if self.p.vel.length() > 10.0 && self.p.roll_t <= 0.0 {
+            let before = (self.p.walk_t * 9.0) as i32;
+            self.p.walk_t += dt;
+            if (self.p.walk_t * 9.0) as i32 != before && before % 2 == 0 {
+                let fp = self.p.pos + vec2(rand::gen_range(-2.0, 2.0), 1.0);
+                for _ in 0..2 { self.parts.push(Particle { p: fp, v: vec2(rand::gen_range(-12.0, 12.0), rand::gen_range(-10.0, -2.0)), life: 0.35, max: 0.35, size: 1.5, col: Color::new(0.6, 0.55, 0.65, 0.7) }); }
+            }
+        }
+        let lt = if self.rooms[self.cur].cleared { 0.0 } else { 1.0 };
+        self.lock_anim += (lt - self.lock_anim) * (dt * 7.0).min(1.0);
+        for c in self.corpses.iter_mut() { c.t += dt; }
+        self.corpses.retain(|c| c.t < 0.4);
+        if self.chest_t >= 0.0 {
+            self.chest_t += dt;
+            if self.chest_t < 1.2 { let c = room_center() - vec2(0.0, 6.0); self.parts.push(Particle { p: c + vec2(rand::gen_range(-5.0, 5.0), 0.0), v: vec2(rand::gen_range(-15.0, 15.0), rand::gen_range(-45.0, -20.0)), life: 0.6, max: 0.6, size: 1.5, col: rgb(255, 215, 90) }); }
+        }
         self.p.pos = self.move_body(self.p.pos, self.p.vel * dt, 5.0, false);
 
         // ---- enemies ----
@@ -639,6 +682,8 @@ impl Game {
 
         // ---- deaths ----
         let mut dead = vec![];
+        let px = self.p.pos.x;
+        for e in self.enemies.iter().filter(|e| e.hp <= 0.0) { self.corpses.push(Corpse { kind: e.kind, bv: e.bv, pos: e.pos, t: 0.0, flip: px < e.pos.x }); }
         self.enemies.retain(|e| if e.hp <= 0.0 { dead.push((e.kind, e.pos)); false } else { true });
         for (kind, pos) in dead {
             self.kills += 1;
@@ -705,7 +750,7 @@ impl Game {
         // ---- chest & portal ----
         let c = room_center();
         if self.rooms[self.cur].chest && pp.distance(c) < 16.0 {
-            self.rooms[self.cur].chest = false;
+            self.rooms[self.cur].chest = false; self.chest_t = 0.0;
             self.p.atk *= 1.3; self.p.potions += 1;
             for _ in 0..8 { self.items.push(Item { pos: c, vel: Vec2::from_angle(rand::gen_range(0.0, TAU)) * 80.0, kind: IK::Coin(self.floor) }); }
             self.text(c - vec2(0.0, 26.0), "QILICH KUCHAYDI! +30%".into(), rgb(255, 215, 90));
@@ -768,7 +813,7 @@ impl Game {
                 let t = room.tiles[ty * RW + tx];
                 if t == 0 || door.is_some() {
                     spr(&art.floor[(hash(tx as u32, ty as u32, self.cur as u32 + self.floor * 31) % 3) as usize], x, y, fs, WHITE, false, 0.0);
-                    if door.is_some() && locked { for i in 0..4 { draw_rectangle(x + 1.0 + i as f32 * 4.0, y, 2.0, T, rgb(110, 105, 125)); } }
+                    if door.is_some() && (locked || self.lock_anim > 0.02) { let bh = T * self.lock_anim; for i in 0..4 { draw_rectangle(x + 1.0 + i as f32 * 4.0, y, 2.0, bh, rgb(110, 105, 125)); draw_rectangle(x + 1.0 + i as f32 * 4.0, y + bh - 1.5, 2.0, 1.5, rgb(170, 165, 185)); } }
                 } else {
                     spr(&art.wall, x, y, fs, if t == 2 { rgb(230, 220, 255) } else { WHITE }, false, 0.0);
                     if t == 2 { draw_rectangle(x, y + T, T, 3.0, Color::new(0.0, 0.0, 0.0, 0.35)); }
@@ -780,12 +825,30 @@ impl Game {
         let torches = [vec2(4.5 * T, 0.7 * T), vec2((RW as f32 - 4.5) * T, 0.7 * T)];
         for tp in torches {
             draw_rectangle(tp.x - 1.0, tp.y, 2.0, 6.0, rgb(90, 60, 40));
-            let fl = (self.t * 17.0 + tp.x).sin() * 0.8;
-            draw_circle(tp.x, tp.y - 1.0 + fl * 0.3, 2.6, rgb(255, 150, 40));
-            draw_circle(tp.x, tp.y - 1.5, 1.3, rgb(255, 240, 160));
+            draw_rectangle(tp.x - 2.0, tp.y - 0.5, 4.0, 1.5, rgb(70, 50, 40));
+            for k in 0..4 {
+                let hgt = 2.0 + ((self.t * 19.0 + k as f32 * 1.7 + tp.x).sin() * 0.5 + 0.5) * (4.0 - k as f32 * 0.6);
+                let wdt = 4.0 - k as f32;
+                let col = [rgb(190, 50, 30), rgb(255, 130, 40), rgb(255, 200, 80), rgb(255, 245, 190)][k];
+                draw_rectangle(tp.x - wdt / 2.0 + ((self.t * 7.0 + k as f32).sin() * 0.4), tp.y - hgt, wdt, hgt, col);
+            }
+            for k in 0..2 { let e = (self.t * 1.3 + tp.x * 0.1 + k as f32 * 0.5).fract(); draw_rectangle(tp.x + (e * 9.0 + tp.x + k as f32).sin() * 2.0, tp.y - 4.0 - e * 10.0, 1.0, 1.0, Color::new(1.0, 0.7, 0.3, 1.0 - e)); }
         }
         let c = room_center();
-        if room.kind == RK::Treasure { spr(&art.chest, c.x - 8.0, c.y - 12.0, 16.0, if room.chest { WHITE } else { rgb(110, 100, 110) }, false, 0.0); }
+        if room.kind == RK::Treasure {
+            if room.chest {
+                let wob = if (self.t * 0.8).fract() > 0.9 { ((self.t * 40.0).sin()) * 0.6 } else { 0.0 };
+                spr(&art.chest, c.x - 8.0 + wob, c.y - 12.0, 16.0, WHITE, false, 0.0);
+                let g = (self.t * 1.7).fract();
+                if g < 0.3 { draw_rectangle(c.x + 3.0, c.y - 8.0 - g * 6.0, 1.0, 1.0, Color::new(1.0, 1.0, 0.9, 1.0 - g * 3.0)); }
+            } else {
+                spr(&art.chest, c.x - 8.0, c.y - 12.0, 16.0, rgb(150, 135, 140), false, 0.0);
+                let lift = (self.chest_t.max(0.0) * 30.0).min(6.0);
+                draw_rectangle(c.x - 6.0, c.y - 8.0, 12.0, 2.0, rgb(255, 210, 90));
+                draw_rectangle(c.x - 7.0, c.y - 10.0 - lift, 14.0, 3.0, rgb(82, 48, 28));
+                draw_rectangle(c.x - 7.0, c.y - 10.0 - lift, 14.0, 1.0, rgb(122, 74, 42));
+            }
+        }
         if room.kind == RK::Shop {
             draw_rectangle(c.x - 66.0, c.y + 2.0, 132.0, 18.0, rgb(120, 34, 44));
             draw_rectangle_lines(c.x - 66.0, c.y + 2.0, 132.0, 18.0, 1.0, rgb(230, 180, 70));
@@ -810,8 +873,11 @@ impl Game {
         }
         for it in &self.items {
             let bob = (self.t * 6.0 + it.pos.x).sin() * 1.0;
-            let t = match it.kind { IK::Coin(_) => &art.coin, IK::Potion => &art.potion, IK::Heart => &art.heart };
-            spr(t, it.pos.x - 4.0, it.pos.y - 8.0 + bob, 8.0, WHITE, false, 0.0);
+            match it.kind {
+                IK::Coin(_) => { let w = 8.0 * (self.t * 7.0 + it.pos.x).cos().abs().max(0.18); spr2(&art.coin, it.pos.x - w / 2.0, it.pos.y - 8.0 + bob, w, 8.0, WHITE, false); }
+                IK::Heart => { let k = 1.0 + ((self.t * 6.0).sin().max(0.0)) * 0.25; spr2(&art.heart, it.pos.x - 4.0 * k, it.pos.y - 4.0 - 4.0 * k + bob, 8.0 * k, 8.0 * k, WHITE, false); }
+                IK::Potion => spr(&art.potion, it.pos.x - 4.0, it.pos.y - 8.0 + bob, 8.0, WHITE, false, 0.0),
+            }
         }
 
         // entities sorted by y
@@ -827,6 +893,14 @@ impl Game {
                 SK::Orb => draw_circle(s.pos.x, s.pos.y, 3.0, rgb(200, 120, 255)),
                 SK::Fire => draw_circle(s.pos.x, s.pos.y, 3.5, rgb(255, 170, 60)),
             }
+        }
+        for c in &self.corpses {
+            let k = c.t / 0.4;
+            let big = c.kind == EK::Boss;
+            let sz = if big { 48.0 } else { 16.0 } * (1.0 + k * 0.45);
+            let t = match (c.kind, c.bv) { (EK::Slime, _) | (EK::Boss, 2) => &art.slime_w, (EK::Bat, _) => &art.bat_w, (EK::Skel, _) | (EK::Boss, 1) => &art.skel_w, (EK::Knight, _) => &art.knight_w, _ => &art.boss_w };
+            let h = sz * (1.0 - k * 0.5);
+            spr2(t, c.pos.x - sz / 2.0, c.pos.y - h + 2.0 - k * 4.0, sz, h, Color::new(1.0, 1.0, 1.0, 1.0 - k), c.flip);
         }
         for p in &self.parts {
             let a = p.life / p.max;
@@ -853,11 +927,23 @@ impl Game {
 
     fn draw_player(&self, art: &Art) {
         let p = &self.p;
+        let moving = p.vel.length() > 10.0 && p.roll_t <= 0.0;
         draw_ellipse(p.pos.x, p.pos.y + 1.0, 5.0, 2.0, 0.0, Color::new(0.0, 0.0, 0.0, 0.4));
-        if p.inv > 0.0 && (self.t * 20.0) as i32 % 2 == 0 { return; }
-        let bob = if p.vel.length() > 10.0 { -(p.walk_t * 12.0).sin().abs() * 1.5 } else { 0.0 };
-        let rot = if p.roll_t > 0.0 { (1.0 - p.roll_t / 0.28) * TAU * p.roll_dir.x.signum() } else { 0.0 };
-        spr(&art.hero, p.pos.x - 8.0, p.pos.y - 15.0 + bob, 16.0, WHITE, p.face.x < 0.0, rot);
+        let hurt_flash = p.inv > 0.95;
+        if p.inv > 0.0 && !hurt_flash && (self.t * 20.0) as i32 % 2 == 0 { return; }
+        let step = (p.walk_t * 9.0) as usize;
+        let frame = if moving { [0, 1, 0, 2][step % 4] } else { 0 };
+        let tex = if hurt_flash { &art.hero_w } else { &art.hero_f[frame] };
+        let flip = p.face.x < 0.0;
+        let lean = if p.swing > 0.0 { p.face * 1.5 } else { Vec2::ZERO };
+        if p.roll_t > 0.0 {
+            let rot = (1.0 - p.roll_t / 0.28) * TAU * p.roll_dir.x.signum();
+            spr(tex, p.pos.x - 8.0, p.pos.y - 13.0, 16.0, WHITE, flip, rot);
+        } else {
+            let bob = if moving && step % 2 == 1 { -1.0 } else { 0.0 };
+            let breath = if moving { 0.0 } else { (self.t * 2.6).sin() * 0.45 + 0.45 };
+            spr2(tex, p.pos.x - 8.0 + lean.x, p.pos.y - 15.0 - breath + bob + lean.y * 0.5, 16.0, 16.0 + breath, WHITE, flip);
+        }
         if p.swing > 0.0 {
             let prog = 1.0 - p.swing / 0.18;
             let side = if p.combo % 2 == 0 { 1.0 } else { -1.0 };
@@ -882,21 +968,41 @@ impl Game {
     fn draw_enemy(&self, e: &Enemy, art: &Art) {
         let big = e.kind == EK::Boss;
         let sz = if big { 48.0 } else { 16.0 };
-        draw_ellipse(e.pos.x, e.pos.y + 1.0, e.r + 1.0, e.r * 0.45, 0.0, Color::new(0.0, 0.0, 0.0, 0.4));
+        let sk = if e.spawn > 0.0 { (1.0 - e.spawn / 0.7).clamp(0.12, 1.0) } else { 1.0 };
+        draw_ellipse(e.pos.x, e.pos.y + 1.0, (e.r + 1.0) * sk, e.r * 0.45 * sk, 0.0, Color::new(0.0, 0.0, 0.0, 0.4));
         if e.spawn > 0.0 {
-            draw_circle_lines(e.pos.x, e.pos.y - 6.0, 10.0 * e.spawn, 1.0, rgb(200, 120, 255));
-            if (self.t * 20.0) as i32 % 2 == 0 { return; }
+            let a = (self.t * 3.0) % TAU;
+            for k in 0..6 { let q = e.pos - vec2(0.0, 6.0) + Vec2::from_angle(a + k as f32 * TAU / 6.0) * (6.0 + 8.0 * (1.0 - sk)); draw_rectangle(q.x, q.y, 1.5, 1.5, rgb(200, 120, 255)); }
+            draw_circle_lines(e.pos.x, e.pos.y - 6.0, 4.0 + 10.0 * (1.0 - sk), 1.0, Color::new(0.8, 0.5, 1.0, 0.8));
         }
-        let (tex, bob) = match e.kind {
-            EK::Slime => (&art.slime, -(e.t.min(0.9) / 0.9 * PI).sin() * 3.0),
-            EK::Bat => (&art.bat, (e.t * 10.0).sin() * 2.0 - 6.0),
-            EK::Skel => (&art.skel, 0.0), EK::Knight => (&art.knight, 0.0), EK::Boss => (match e.bv { 1 => &art.skel, 2 => &art.slime, _ => &art.boss }, if e.bv == 2 && e.state == 1 { -(e.t / 0.5 * PI).sin() * 14.0 } else { (self.t * 2.0).sin() * 2.0 }),
+        let moving = e.vel.length() > 6.0;
+        let wf = if moving { [0, 1, 0, 2][((e.t * 8.0) as usize) % 4] } else { 0 };
+        let flash = e.flash > 0.0;
+        let (mut w, mut h, mut bob) = (sz, sz, 0.0);
+        if e.kind == EK::Slime {
+            if e.vel.length() > 60.0 { w = sz * 0.82; h = sz * 1.22; bob = -3.0; }
+            else if e.t > 0.7 { w = sz * 1.22; h = sz * 0.78; }
+            else { let b = (self.t * 5.0 + e.pos.x).sin() * 0.05; w = sz * (1.0 + b); h = sz * (1.0 - b); }
+        }
+        if big && e.bv == 2 {
+            if e.state == 1 { bob = -((e.t / 0.5).min(1.0) * PI).sin() * 14.0; w = sz * 0.85; h = sz * 1.2; }
+            else if e.t > 1.0 { w = sz * 1.2; h = sz * 0.8; }
+            else if e.t < 0.15 { w = sz * 1.28; h = sz * 0.72; }
+            else { let b = (self.t * 4.0).sin() * 0.04; w = sz * (1.0 + b); h = sz * (1.0 - b); }
+        }
+        if big && e.bv == 0 { let pl = 1.0 + (self.t * 3.0).sin() * 0.03; w = sz * pl; h = sz * (2.0 - pl); bob = (self.t * 2.0).sin() * 2.0; }
+        let tex: &Texture2D = match e.kind {
+            EK::Slime => if flash { &art.slime_w } else { &art.slime },
+            EK::Bat => { bob = (e.t * 10.0).sin() * 2.0 - 6.0; if flash { &art.bat_w } else { &art.bat_f[[0, 1, 0, 2][((e.t * 14.0) as usize) % 4]] } }
+            EK::Skel => if flash { &art.skel_w } else { &art.skel_f[wf] },
+            EK::Knight => if flash { &art.knight_w } else { &art.knight_f[if e.state == 2 { 1 } else { wf }] },
+            EK::Boss => match e.bv { 1 => if flash { &art.skel_w } else { &art.skel_f[wf] }, 2 => if flash { &art.slime_w } else { &art.slime }, _ => if flash { &art.boss_w } else { &art.boss } },
         };
         let warn = (e.kind == EK::Knight || big) && e.state == 1 && (self.t * 16.0) as i32 % 2 == 0;
-        let tint = if e.flash > 0.0 { Color::new(1.0, 0.45, 0.45, 1.0) } else if warn { Color::new(1.0, 0.85, 0.3, 1.0) } else { WHITE };
-        let tint = if big && e.flash <= 0.0 && !warn { match e.bv { 1 => Color::new(1.0, 0.86, 0.5, 1.0), 2 => Color::new(0.6, 0.9, 0.55, 1.0), _ => WHITE } } else { tint };
+        let tint = if flash { WHITE } else if warn { Color::new(1.0, 0.85, 0.3, 1.0) } else if big { match e.bv { 1 => Color::new(1.0, 0.86, 0.5, 1.0), 2 => Color::new(0.6, 0.9, 0.55, 1.0), _ => WHITE } } else { WHITE };
         let flip = (self.p.pos.x - e.pos.x) < 0.0;
-        spr(tex, e.pos.x - sz / 2.0, e.pos.y - sz + 2.0 + bob, sz, tint, flip, 0.0);
+        let (w, h) = (w * sk, h * sk);
+        spr2(tex, e.pos.x - w / 2.0, e.pos.y - h + 2.0 + bob, w, h, tint, flip);
         if !big && e.hp < e.max_hp {
             draw_rectangle(e.pos.x - 7.0, e.pos.y - 18.0, 14.0, 2.0, rgb(40, 10, 15));
             draw_rectangle(e.pos.x - 7.0, e.pos.y - 18.0, 14.0 * (e.hp / e.max_hp).max(0.0), 2.0, rgb(240, 60, 60));
