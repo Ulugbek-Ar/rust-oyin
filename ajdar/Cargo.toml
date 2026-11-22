@@ -1,0 +1,25 @@
+[package]
+name = "ajdar"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+macroquad = { version = "0.4", features = ["audio"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+
+[package.metadata.android]
+package_name = "uz.pikselqala.ajdar"
+label = "Ajdar Parvozi"
+fullscreen = true
+res = "android_res"
+icon = "@mipmap/ic_launcher"
+build_targets = ["aarch64-linux-android", "armv7-linux-androideabi", "x86_64-linux-android"]
+version_code = 1
+version_name = "0.1"
+
+[package.metadata.android.activity_attributes]
+"android:screenOrientation" = "userLandscape"
+"android:exported" = "true"

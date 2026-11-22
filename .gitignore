@@ -30,3 +30,5 @@ rustc-ice-*.txt
 site/zulmat.wasm
 site/mq_js_bundle.js
 site/neon.wasm
+ajdar/target/
+site/ajdar.wasm

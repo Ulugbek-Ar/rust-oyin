@@ -3,6 +3,7 @@ name: Android APK
 on:
   push:
     branches: [main, ccr-6beb9320-7sxxbq]
+    paths-ignore: ['ajdar/**', 'site/**', '.github/workflows/ajdar.yml']
   workflow_dispatch:
 
 permissions:
