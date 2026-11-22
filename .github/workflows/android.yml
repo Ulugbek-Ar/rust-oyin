@@ -92,8 +92,8 @@ jobs:
             sleep 20
             adb install -r QALA-RITSARI.apk
             adb logcat -c
-            adb shell am start -W -n uz.pikselqala.ritsar/.MainActivity
+            adb shell am start -W -n uz.pikselqala.ritsar.zulmat/.MainActivity
             sleep 20
-            adb shell pidof uz.pikselqala.ritsar || echo "=== PROCESS NOT RUNNING ==="
+            adb shell pidof uz.pikselqala.ritsar.zulmat || echo "=== PROCESS NOT RUNNING ==="
             echo "=== CRASH BUFFER ===" && adb logcat -b crash -d | tail -60
             echo "=== APP LOG ===" && adb logcat -d -v brief | grep -E "ZQ|SAPP|RustStdout|ritsar|AndroidRuntime|DEBUG  |libc    " | grep -v "BroadcastQueue\|GCM\|FontLog" | tail -80
