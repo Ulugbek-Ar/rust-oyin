@@ -22,14 +22,18 @@ jobs:
                      cargo quad-apk build --release"
           sudo cp ajdar/target/android-artifacts/release/apk/ajdar.apk raw.apk
           sudo chown $USER raw.apk
+      - name: Restore signing key (stable across builds)
+        uses: actions/cache@v4
+        with:
+          path: signing.jks
+          key: pikselqala-signing-key-v1
       - name: Sign APK (zipalign + apksigner)
         run: |
           BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
           zip -q -d raw.apk 'META-INF/*' || true
           $BT/zipalign -f -p 4 raw.apk aligned.apk
-          keytool -genkeypair -keystore k.jks -storepass ajdar123 -keypass ajdar123 -alias ajdar \
-            -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Piksel Qala, O=Piksel Qala, C=UZ"
-          $BT/apksigner sign --ks k.jks --ks-pass pass:ajdar123 --key-pass pass:ajdar123 --out AJDAR-PARVOZI.apk aligned.apk
+          [ -f signing.jks ] || keytool -genkeypair -keystore signing.jks -storepass pikselqala -keypass pikselqala -alias pq -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Piksel Qala, O=Piksel Qala, C=UZ"
+          $BT/apksigner sign --ks signing.jks --ks-pass pass:pikselqala --key-pass pass:pikselqala --out AJDAR-PARVOZI.apk aligned.apk
           $BT/apksigner verify AJDAR-PARVOZI.apk
           $BT/aapt dump badging AJDAR-PARVOZI.apk | grep -E "package:|application:|native-code"
           ls -lh AJDAR-PARVOZI.apk

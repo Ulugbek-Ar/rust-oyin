@@ -22,14 +22,18 @@ jobs:
                      cargo quad-apk build --release"
           sudo cp mudofaa/target/android-artifacts/release/apk/mudofaa.apk raw.apk
           sudo chown $USER raw.apk
+      - name: Restore signing key (stable across builds)
+        uses: actions/cache@v4
+        with:
+          path: signing.jks
+          key: pikselqala-signing-key-v1
       - name: Sign APK (zipalign + apksigner)
         run: |
           BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
           zip -q -d raw.apk 'META-INF/*' || true
           $BT/zipalign -f -p 4 raw.apk aligned.apk
-          keytool -genkeypair -keystore k.jks -storepass mudofaa123 -keypass mudofaa123 -alias mudofaa \
-            -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Piksel Qala, O=Piksel Qala, C=UZ"
-          $BT/apksigner sign --ks k.jks --ks-pass pass:mudofaa123 --key-pass pass:mudofaa123 --out QALA-MUDOFAASI.apk aligned.apk
+          [ -f signing.jks ] || keytool -genkeypair -keystore signing.jks -storepass pikselqala -keypass pikselqala -alias pq -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Piksel Qala, O=Piksel Qala, C=UZ"
+          $BT/apksigner sign --ks signing.jks --ks-pass pass:pikselqala --key-pass pass:pikselqala --out QALA-MUDOFAASI.apk aligned.apk
           $BT/apksigner verify QALA-MUDOFAASI.apk
           $BT/aapt dump badging QALA-MUDOFAASI.apk | grep -E "package:|application:|native-code"
           ls -lh QALA-MUDOFAASI.apk
