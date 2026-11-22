@@ -38,11 +38,9 @@ jobs:
           name: AJDAR-PARVOZI-apk
           path: AJDAR-PARVOZI.apk
       - name: Publish to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: apk
-          files: AJDAR-PARVOZI.apk
-          overwrite_files: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload apk AJDAR-PARVOZI.apk --clobber --repo ${{ github.repository }}
 
   emulator-test:
     needs: apk

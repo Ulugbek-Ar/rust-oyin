@@ -38,11 +38,9 @@ jobs:
           name: NEON-HOKKEY-apk
           path: NEON-HOKKEY.apk
       - name: Publish to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: apk
-          files: NEON-HOKKEY.apk
-          overwrite_files: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload apk NEON-HOKKEY.apk --clobber --repo ${{ github.repository }}
 
   emulator-test:
     needs: apk

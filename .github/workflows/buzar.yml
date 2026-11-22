@@ -38,11 +38,9 @@ jobs:
           name: QALA-BUZAR-apk
           path: QALA-BUZAR.apk
       - name: Publish to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: apk
-          files: QALA-BUZAR.apk
-          overwrite_files: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload apk QALA-BUZAR.apk --clobber --repo ${{ github.repository }}
 
   emulator-test:
     needs: apk
