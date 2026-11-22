@@ -89,10 +89,11 @@ jobs:
           target: google_apis
           disable-animations: true
           script: |
+            sleep 20
             adb install -r QALA-RITSARI.apk
             adb logcat -c
-            adb shell am start -n uz.pikselqala.ritsar/.MainActivity
-            sleep 25
+            adb shell am start -W -n uz.pikselqala.ritsar/.MainActivity
+            sleep 20
             adb shell pidof uz.pikselqala.ritsar || echo "=== PROCESS NOT RUNNING ==="
-            adb shell dumpsys window | grep -i mCurrentFocus || true
-            adb logcat -d -v brief | grep -iE "ritsar|rust|panic|miniquad|quad|AndroidRuntime|DEBUG|FATAL|SIGSEGV|linker|ActivityManager|ANR" | tail -200
+            echo "=== CRASH BUFFER ===" && adb logcat -b crash -d | tail -60
+            echo "=== APP LOG ===" && adb logcat -d -v brief | grep -E "ZQ|SAPP|RustStdout|ritsar|AndroidRuntime|DEBUG  |libc    " | grep -v "BroadcastQueue\|GCM\|FontLog" | tail -80

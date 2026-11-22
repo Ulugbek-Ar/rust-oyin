@@ -976,13 +976,21 @@ fn conf() -> Conf {
 #[macroquad::main(conf)]
 async fn main() {
     if std::env::args().any(|a| a == "--icons") { export_icons(); return; }
+    std::panic::set_hook(Box::new(|info| { macroquad::logging::error!("ZQ PANIC: {}", info); }));
+    macroquad::logging::info!("ZQ start");
     simulate_mouse_with_touch(false);
     rand::srand(macroquad::miniquad::date::now() as u64);
     let art = Art::load();
+    macroquad::logging::info!("ZQ art loaded");
     let (sfx, music) = load_audio().await;
+    macroquad::logging::info!("ZQ audio loaded");
     play_sound(&music, PlaySoundParams { looped: true, volume: 0.45 });
     let mut g = Game::new(cfg!(target_os = "android"), 1);
+    macroquad::logging::info!("ZQ game created");
+    let mut frames = 0u32;
     loop {
+        frames += 1;
+        if frames == 1 || frames == 60 { macroquad::logging::info!("ZQ frame {}", frames); }
         let dt = get_frame_time().min(1.0 / 30.0);
         clear_background(rgb(6, 4, 10));
         match g.state {
