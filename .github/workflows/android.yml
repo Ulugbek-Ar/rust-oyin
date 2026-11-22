@@ -21,7 +21,7 @@ jobs:
         run: |
           docker run --rm -v "$PWD":/root/src -w /root/src notfl3/cargo-apk \
             bash -c "rustup update stable && rustup default stable && \
-                     rustup target add aarch64-linux-android armv7-linux-androideabi && \
+                     rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android && \
                      cargo quad-apk build --release"
           sudo cp target/android-artifacts/release/apk/zulmat.apk raw.apk
           sudo chown $USER raw.apk
@@ -68,3 +68,31 @@ jobs:
           ⬇️ APK ni o'rnating va rekordingizni izohda yozing!" \
             "https://api.telegram.org/bot${TG_TOKEN}/sendDocument" > /dev/null
           echo "Yuborildi"
+
+  emulator-test:
+    needs: apk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: QALA-RITSARI-apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run on Android emulator and dump logcat
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 31
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            adb install -r QALA-RITSARI.apk
+            adb logcat -c
+            adb shell am start -n uz.pikselqala.ritsar/.MainActivity
+            sleep 25
+            adb shell pidof uz.pikselqala.ritsar || echo "=== PROCESS NOT RUNNING ==="
+            adb shell dumpsys window | grep -i mCurrentFocus || true
+            adb logcat -d -v brief | grep -iE "ritsar|rust|panic|miniquad|quad|AndroidRuntime|DEBUG|FATAL|SIGSEGV|linker|ActivityManager|ANR" | tail -200

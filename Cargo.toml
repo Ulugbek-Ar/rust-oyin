@@ -16,7 +16,7 @@ label = "Qalʼa Ritsari"
 fullscreen = true
 res = "android_res"
 icon = "@mipmap/ic_launcher"
-build_targets = ["aarch64-linux-android", "armv7-linux-androideabi"]
+build_targets = ["aarch64-linux-android", "armv7-linux-androideabi", "x86_64-linux-android"]
 version_code = 3
 version_name = "0.2-rpg"
 
