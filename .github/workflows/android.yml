@@ -17,6 +17,10 @@ jobs:
       TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
     steps:
       - uses: actions/checkout@v4
+      - name: Bump version (each build installs as an update)
+        run: |
+          sed -i "s/^version_code = .*/version_code = $((100 + ${{ github.run_number }}))/; s/^version_name = .*/version_name = \"1.${{ github.run_number }}\"/" Cargo.toml
+          grep -E "^version_(code|name)" Cargo.toml
 
       - name: Build APK (cargo-quad-apk)
         run: |
