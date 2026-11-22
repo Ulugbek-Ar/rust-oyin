@@ -414,7 +414,7 @@ ul.feat { margin: 10px 0 0; padding-left: 18px; color: var(--dim); }
     var r = st.lib[g.id]; r.plays = (r.plays || 0) + 1; r.last = Date.now(); save();
     var p = el('<div class="player" role="dialog" aria-label="' + esc(g.name) + '"><header><b>' + esc(g.name) + '</b><span id="pt">0:00</span><button type="button" id="close">✕ Chiqish</button></header><iframe allow="autoplay; fullscreen" title="' + esc(g.name) + '"></iframe></div>');
     document.body.appendChild(p);
-    var f = p.querySelector('iframe'); f.src = g.web.page;
+    var f = p.querySelector('iframe'); f.src = g.web.page + '?v=7';
     f.addEventListener('load', function () { try { f.contentWindow.focus(); f.contentDocument.getElementById('glcanvas').focus(); } catch (e) {} });
     if (st.set.fs && p.requestFullscreen) { try { var q = p.requestFullscreen(); if (q && q.catch) q.catch(function () {}); } catch (e) {} }
     var sess = 0, tick = setInterval(function () {

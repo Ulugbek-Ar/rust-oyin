@@ -79,20 +79,63 @@ fn img_rows(rows: &[String], size: u16, swap: &[(char, char)], white: bool) -> I
     img
 }
 fn owned(rows: &[&str]) -> Vec<String> { rows.iter().map(|x| x.to_string()).collect() }
-fn legs(rows: &[&str], a: &str, b: &str, c: &str) -> Vec<String> { let mut v = owned(rows); let n = v.len(); v[n - 3] = a.into(); v[n - 2] = b.into(); v[n - 1] = c.into(); v }
 const BAT_UP: [&str; 12] = ["", "", "", "k..............k", "kk.....kk.....kk", "kpk...kppk...kpk", "kppk.kprprk.kppk", ".kppkppppppkppk.", "..kpppppppppppk.", "...kppkppkppk...", "....k.kppk.k....", ".......kk......."];
 const BAT_DN: [&str; 12] = ["", "", "", "", "", ".......kk.......", "......kppk......", ".....kprprk.....", "..kkkppppppkkk..", ".kpppppppppppppk", "kppk.kppppk.kppk", "kpk...kppk...kpk"];
-fn walk3(rows: &[&str], swap: &[(char, char)], skel: bool) -> [Texture2D; 3] {
-    let (a, b) = if skel {
-        (legs(rows, "....kwk...kwk...", "...kwk.....kwk..", "..kkk......kkk.."), legs(rows, ".....kwkkwk.....", ".....kwkkwk.....", "....kkkkkkkk...."))
-    } else {
-        (legs(rows, "..kBBBk.kBBBk...", "..kllk...kllk...", "..kkkk...kkkk..."), legs(rows, "....kBBkBBk.....", "....kllkllk.....", "....kkkkkkk....."))
-    };
-    [tex(&img_rows(&owned(rows), 16, swap, false)), tex(&img_rows(&a, 16, swap, false)), tex(&img_rows(&b, 16, swap, false))]
-}
 fn white(rows: &[&str], size: u16, swap: &[(char, char)]) -> Texture2D { tex(&img_rows(&owned(rows), size, swap, true)) }
 fn spr2(t: &Texture2D, x: f32, y: f32, w: f32, h: f32, tint: Color, flip: bool) {
     draw_texture_ex(t, x, y, tint, DrawTextureParams { dest_size: Some(vec2(w, h)), flip_x: flip, ..Default::default() });
+}
+fn region_img(rows: &[&str], b: (u32, u32, u32, u32), swap: &[(char, char)], white: bool) -> Image {
+    let (x0, y0, w, h) = b;
+    let mut img = Image::gen_image_color(w as u16, h as u16, BLANK);
+    for y in 0..h {
+        let row = rows.get((y0 + y) as usize).copied().unwrap_or("");
+        for x in 0..w {
+            if let Some(c) = row.chars().nth((x0 + x) as usize) {
+                let c = swap.iter().find(|s| s.0 == c).map_or(c, |s| s.1);
+                if let Some(col) = pal(c) { img.set_pixel(x, y, if white { WHITE } else { col }); }
+            }
+        }
+    }
+    img
+}
+// Cut-out rig: head, torso and two legs are cut from the sprite, arms are drawn as limbs.
+struct Rig { parts: Vec<(Texture2D, Texture2D, Vec2, Vec2)>, hip: [Vec2; 2], shoulder: [Vec2; 2], sleeve: Color, hand: Color, arm_len: f32, arm_w: f32 }
+fn make_rig(rows: &[&str], swap: &[(char, char)], torso_swap: &[(char, char)], boxes: [(u32, u32, u32, u32); 4], hip: [Vec2; 2], shoulder: [Vec2; 2], sleeve: Color, hand: Color, arm_len: f32, arm_w: f32) -> Rig {
+    let mut parts = vec![];
+    for (i, bx) in boxes.iter().enumerate() {
+        let sw: Vec<(char, char)> = if i == 1 { torso_swap.iter().chain(swap.iter()).cloned().collect() } else { swap.to_vec() };
+        let t = tex(&region_img(rows, *bx, &sw, false)); let w = tex(&region_img(rows, *bx, &sw, true));
+        parts.push((t, w, vec2(bx.0 as f32, bx.1 as f32), vec2(bx.2 as f32, bx.3 as f32)));
+    }
+    Rig { parts, hip, shoulder, sleeve, hand, arm_len, arm_w }
+}
+struct Pose { phase: f32, moving: bool, breath: f32, front: Option<Vec2>, back_swing: f32, leg_spread: f32 }
+fn rig_point(feet: Vec2, flip: bool, scale: f32, p: Vec2) -> Vec2 { let x = if flip { 16.0 - p.x } else { p.x }; feet - vec2(8.0, 16.0) * scale + vec2(x, p.y) * scale }
+fn draw_rig(r: &Rig, feet: Vec2, flip: bool, scale: f32, pose: &Pose, white: bool, tint: Color) {
+    let sgn = if flip { -1.0 } else { 1.0 };
+    let leg_a = if pose.moving { pose.phase.sin() * 0.6 } else { 0.0 } + pose.leg_spread;
+    let bob = if pose.moving { -pose.phase.sin().abs() * 1.3 * scale } else { -pose.breath * scale };
+    let part = |i: usize, dy: f32, rot: f32, pivot: Option<Vec2>| {
+        let (t, w, at, sz) = &r.parts[i];
+        let x = if flip { 16.0 - at.x - sz.x } else { at.x };
+        let o = feet - vec2(8.0, 16.0) * scale + vec2(x, at.y) * scale + vec2(0.0, dy);
+        draw_texture_ex(if white { w } else { t }, o.x, o.y, tint, DrawTextureParams { dest_size: Some(*sz * scale), flip_x: flip, rotation: rot, pivot, ..Default::default() });
+    };
+    let arm = |sh: Vec2, dir: Vec2| {
+        let s = rig_point(feet, flip, scale, sh) + vec2(0.0, bob);
+        let e = s + dir.normalize_or(Vec2::Y) * r.arm_len * scale;
+        let (sl, hd) = if white { (WHITE, WHITE) } else { (r.sleeve, r.hand) };
+        draw_line(s.x, s.y, e.x, e.y, r.arm_w * scale, Color { a: tint.a, ..sl });
+        draw_rectangle(e.x - r.arm_w * scale * 0.6, e.y - r.arm_w * scale * 0.6, r.arm_w * scale * 1.2, r.arm_w * scale * 1.2, Color { a: tint.a, ..hd });
+    };
+    let down = |a: f32| vec2(a.sin() * sgn, a.cos());
+    arm(r.shoulder[0], down(-leg_a * 1.2 + pose.back_swing));
+    part(2, 0.0, leg_a * sgn, Some(rig_point(feet, flip, scale, r.hip[0])));
+    part(3, 0.0, -leg_a * sgn, Some(rig_point(feet, flip, scale, r.hip[1])));
+    part(1, bob, 0.0, None);
+    part(0, bob * 1.15 + if pose.moving { 0.0 } else { -pose.breath * scale * 0.3 }, 0.0, None);
+    arm(r.shoulder[1], pose.front.unwrap_or(down(leg_a * 1.2 - pose.back_swing)));
 }
 fn tex(img: &Image) -> Texture2D { let t = Texture2D::from_image(img); t.set_filter(FilterMode::Nearest); t }
 fn floor_tex(seed: u32) -> Texture2D {
@@ -131,17 +174,19 @@ fn wall_tex() -> Texture2D {
     tex(&img)
 }
 
-struct Art { hero_f: [Texture2D; 3], knight_f: [Texture2D; 3], skel_f: [Texture2D; 3], bat_f: [Texture2D; 3],
-    hero_w: Texture2D, knight_w: Texture2D, skel_w: Texture2D, slime_w: Texture2D, bat_w: Texture2D, boss_w: Texture2D,
+struct Art { rig_hero: Rig, rig_knight: Rig, rig_skel: Rig, bat_f: [Texture2D; 3],
+    knight_w: Texture2D, skel_w: Texture2D, slime_w: Texture2D, bat_w: Texture2D, boss_w: Texture2D,
     merchant: Texture2D, slime: Texture2D, boss: Texture2D,
     coin: Texture2D, potion: Texture2D, heart: Texture2D, chest: Texture2D, floor: [Texture2D; 3], wall: Texture2D }
 const KNIGHT_SWAP: [(char, char); 7] = [('b', 'R'), ('B', 'D'), ('h', 'M'), ('H', 'N'), ('y', 'r'), ('s', 'k'), ('e', 'r')];
 impl Art {
     fn load() -> Art {
         Art {
-            hero_f: walk3(&HERO, &[], false), knight_f: walk3(&HERO, &KNIGHT_SWAP, false), skel_f: walk3(&SKEL, &[], true),
+            rig_hero: make_rig(&HERO, &[], &[('s', 'b')], [(3, 0, 10, 9), (2, 9, 11, 4), (3, 13, 4, 3), (8, 13, 4, 3)], [vec2(5.0, 13.0), vec2(10.0, 13.0)], [vec2(2.5, 10.0), vec2(12.5, 10.0)], rgb(37, 65, 138), rgb(242, 199, 154), 3.6, 1.7),
+            rig_knight: make_rig(&HERO, &KNIGHT_SWAP, &[('s', 'R')], [(3, 0, 10, 9), (2, 9, 11, 4), (3, 13, 4, 3), (8, 13, 4, 3)], [vec2(5.0, 13.0), vec2(10.0, 13.0)], [vec2(2.5, 10.0), vec2(12.5, 10.0)], rgb(120, 25, 35), rgb(55, 55, 68), 3.6, 1.8),
+            rig_skel: make_rig(&SKEL, &[], &[], [(4, 1, 8, 7), (4, 8, 8, 5), (4, 13, 4, 3), (9, 13, 4, 3)], [vec2(6.0, 13.0), vec2(11.0, 13.0)], [vec2(4.0, 9.0), vec2(11.5, 9.0)], rgb(236, 232, 220), rgb(236, 232, 220), 3.6, 1.2),
             bat_f: [tex(&sprite_img(&BAT, 16, &[])), tex(&sprite_img(&BAT_UP, 16, &[])), tex(&sprite_img(&BAT_DN, 16, &[]))],
-            hero_w: white(&HERO, 16, &[]), knight_w: white(&HERO, 16, &KNIGHT_SWAP), skel_w: white(&SKEL, 16, &[]),
+            knight_w: white(&HERO, 16, &KNIGHT_SWAP), skel_w: white(&SKEL, 16, &[]),
             slime_w: white(&SLIME, 16, &[]), bat_w: white(&BAT, 16, &[]), boss_w: white(&BOSS, 16, &[]),
             merchant: tex(&sprite_img(&HERO, 16, &[('b', 'p'), ('B', 'd'), ('h', 'y'), ('H', 'l'), ('y', 'r')])),
             slime: tex(&sprite_img(&SLIME, 16, &[])), boss: tex(&sprite_img(&BOSS, 16, &[])),
@@ -931,26 +976,29 @@ impl Game {
         draw_ellipse(p.pos.x, p.pos.y + 1.0, 5.0, 2.0, 0.0, Color::new(0.0, 0.0, 0.0, 0.4));
         let hurt_flash = p.inv > 0.95;
         if p.inv > 0.0 && !hurt_flash && (self.t * 20.0) as i32 % 2 == 0 { return; }
-        let step = (p.walk_t * 9.0) as usize;
-        let frame = if moving { [0, 1, 0, 2][step % 4] } else { 0 };
-        let tex = if hurt_flash { &art.hero_w } else { &art.hero_f[frame] };
         let flip = p.face.x < 0.0;
         let lean = if p.swing > 0.0 { p.face * 1.5 } else { Vec2::ZERO };
+        let feet = p.pos + vec2(lean.x, 1.0 + lean.y * 0.5);
+        let swing_dir = if p.swing > 0.0 {
+            let prog = 1.0 - p.swing / 0.18;
+            let side = if p.combo % 2 == 0 { 1.0 } else { -1.0 };
+            let a0 = p.face.to_angle() - 1.2 * side;
+            Some(Vec2::from_angle(a0 + 2.4 * side * prog))
+        } else { None };
         if p.roll_t > 0.0 {
             let rot = (1.0 - p.roll_t / 0.28) * TAU * p.roll_dir.x.signum();
-            spr(tex, p.pos.x - 8.0, p.pos.y - 13.0, 16.0, WHITE, flip, rot);
+            draw_rig(&art.rig_hero, p.pos + vec2(0.0, 1.0), flip, 1.0, &Pose { phase: 0.0, moving: false, breath: 0.0, front: Some(Vec2::from_angle(rot)), back_swing: rot, leg_spread: (rot * 2.0).sin() * 0.9 }, hurt_flash, WHITE);
         } else {
-            let bob = if moving && step % 2 == 1 { -1.0 } else { 0.0 };
-            let breath = if moving { 0.0 } else { (self.t * 2.6).sin() * 0.45 + 0.45 };
-            spr2(tex, p.pos.x - 8.0 + lean.x, p.pos.y - 15.0 - breath + bob + lean.y * 0.5, 16.0, 16.0 + breath, WHITE, flip);
+            let pose = Pose { phase: p.walk_t * 10.0, moving, breath: (self.t * 2.6).sin() * 0.5 + 0.5, front: swing_dir, back_swing: (self.t * 2.0).sin() * 0.08, leg_spread: if p.swing > 0.0 { 0.25 } else { 0.0 } };
+            draw_rig(&art.rig_hero, feet, flip, 1.0, &pose, hurt_flash, WHITE);
         }
         if p.swing > 0.0 {
             let prog = 1.0 - p.swing / 0.18;
             let side = if p.combo % 2 == 0 { 1.0 } else { -1.0 };
             let base = p.face.to_angle();
-            let hilt = p.pos - vec2(0.0, 7.0);
+            let a = base - 1.2 * side + 2.4 * side * prog;
+            let hilt = rig_point(p.pos + vec2(0.0, 1.0), p.face.x < 0.0, 1.0, art.rig_hero.shoulder[1]) + Vec2::from_angle(a) * 3.0;
             let a0 = base - 1.2 * side;
-            let a = a0 + 2.4 * side * prog;
             let steps = 8;
             for s in 0..steps {
                 let t0 = a0 + (a - a0) * s as f32 / steps as f32;
@@ -976,13 +1024,12 @@ impl Game {
             draw_circle_lines(e.pos.x, e.pos.y - 6.0, 4.0 + 10.0 * (1.0 - sk), 1.0, Color::new(0.8, 0.5, 1.0, 0.8));
         }
         let moving = e.vel.length() > 6.0;
-        let wf = if moving { [0, 1, 0, 2][((e.t * 8.0) as usize) % 4] } else { 0 };
         let flash = e.flash > 0.0;
         let (mut w, mut h, mut bob) = (sz, sz, 0.0);
         if e.kind == EK::Slime {
-            if e.vel.length() > 60.0 { w = sz * 0.82; h = sz * 1.22; bob = -3.0; }
-            else if e.t > 0.7 { w = sz * 1.22; h = sz * 0.78; }
-            else { let b = (self.t * 5.0 + e.pos.x).sin() * 0.05; w = sz * (1.0 + b); h = sz * (1.0 - b); }
+            if e.vel.length() > 60.0 { w = sz * 0.72; h = sz * 1.35; bob = -4.0; }
+            else if e.t > 0.7 { let k = ((e.t - 0.7) / 0.2).min(1.0); w = sz * (1.0 + 0.35 * k); h = sz * (1.0 - 0.32 * k); }
+            else { let b = (self.t * 6.0 + e.pos.x).sin() * 0.12; w = sz * (1.0 + b); h = sz * (1.0 - b); }
         }
         if big && e.bv == 2 {
             if e.state == 1 { bob = -((e.t / 0.5).min(1.0) * PI).sin() * 14.0; w = sz * 0.85; h = sz * 1.2; }
@@ -993,16 +1040,34 @@ impl Game {
         if big && e.bv == 0 { let pl = 1.0 + (self.t * 3.0).sin() * 0.03; w = sz * pl; h = sz * (2.0 - pl); bob = (self.t * 2.0).sin() * 2.0; }
         let tex: &Texture2D = match e.kind {
             EK::Slime => if flash { &art.slime_w } else { &art.slime },
-            EK::Bat => { bob = (e.t * 10.0).sin() * 2.0 - 6.0; if flash { &art.bat_w } else { &art.bat_f[[0, 1, 0, 2][((e.t * 14.0) as usize) % 4]] } }
-            EK::Skel => if flash { &art.skel_w } else { &art.skel_f[wf] },
-            EK::Knight => if flash { &art.knight_w } else { &art.knight_f[if e.state == 2 { 1 } else { wf }] },
-            EK::Boss => match e.bv { 1 => if flash { &art.skel_w } else { &art.skel_f[wf] }, 2 => if flash { &art.slime_w } else { &art.slime }, _ => if flash { &art.boss_w } else { &art.boss } },
+            EK::Bat => { bob = (e.t * 10.0).sin() * 3.0 - 7.0; w = sz * (1.0 + (e.t * 14.0 * PI / 2.0).sin() * 0.22); if flash { &art.bat_w } else { &art.bat_f[[0, 1, 0, 2][((e.t * 14.0) as usize) % 4]] } }
+            EK::Skel | EK::Knight => &art.skel_w,
+            EK::Boss => match e.bv { 1 => &art.skel_w, 2 => if flash { &art.slime_w } else { &art.slime }, _ => if flash { &art.boss_w } else { &art.boss } },
         };
         let warn = (e.kind == EK::Knight || big) && e.state == 1 && (self.t * 16.0) as i32 % 2 == 0;
         let tint = if flash { WHITE } else if warn { Color::new(1.0, 0.85, 0.3, 1.0) } else if big { match e.bv { 1 => Color::new(1.0, 0.86, 0.5, 1.0), 2 => Color::new(0.6, 0.9, 0.55, 1.0), _ => WHITE } } else { WHITE };
         let flip = (self.p.pos.x - e.pos.x) < 0.0;
         let (w, h) = (w * sk, h * sk);
-        spr2(tex, e.pos.x - w / 2.0, e.pos.y - h + 2.0 + bob, w, h, tint, flip);
+        let rig = match (e.kind, e.bv) { (EK::Skel, _) | (EK::Boss, 1) => Some(&art.rig_skel), (EK::Knight, _) => Some(&art.rig_knight), _ => None };
+        if let Some(rig) = rig {
+            let to_p = (self.p.pos - e.pos).normalize_or(Vec2::X);
+            let aiming = (e.kind == EK::Skel && e.atk < 0.45) || (big && e.state == 1);
+            let charging = e.state == 2 && (e.kind == EK::Knight || big);
+            let front = if aiming || charging { Some(if charging { e.dir } else { to_p }) } else { None };
+            let pose = Pose { phase: e.t * 9.0, moving: moving && !aiming, breath: (self.t * 2.2 + e.pos.x).sin() * 0.4 + 0.4, front, back_swing: if charging { -0.9 } else { 0.0 }, leg_spread: if charging { 0.5 } else { 0.0 } };
+            let scale = sz / 16.0 * sk;
+            draw_rig(rig, e.pos + vec2(0.0, 2.0), flip, scale, &pose, flash, tint);
+            if e.kind == EK::Skel || big {
+                let hand = rig_point(e.pos + vec2(0.0, 2.0), flip, scale, rig.shoulder[1]) + front.unwrap_or(vec2(0.3 * if flip { -1.0 } else { 1.0 }, 1.0)).normalize() * rig.arm_len * scale;
+                let d = front.unwrap_or(vec2(if flip { -1.0 } else { 1.0 }, 0.0)).normalize();
+                let pr = d.perp() * 4.0 * scale;
+                draw_line(hand.x + pr.x, hand.y + pr.y, hand.x + d.x * 2.0 * scale, hand.y + d.y * 2.0 * scale, 1.0 * scale, rgb(122, 74, 42));
+                draw_line(hand.x - pr.x, hand.y - pr.y, hand.x + d.x * 2.0 * scale, hand.y + d.y * 2.0 * scale, 1.0 * scale, rgb(122, 74, 42));
+                if aiming { draw_line(hand.x + pr.x, hand.y + pr.y, hand.x - pr.x, hand.y - pr.y, 0.5 * scale, rgb(230, 230, 230)); }
+            }
+        } else {
+            spr2(tex, e.pos.x - w / 2.0, e.pos.y - h + 2.0 + bob, w, h, tint, flip);
+        }
         if !big && e.hp < e.max_hp {
             draw_rectangle(e.pos.x - 7.0, e.pos.y - 18.0, 14.0, 2.0, rgb(40, 10, 15));
             draw_rectangle(e.pos.x - 7.0, e.pos.y - 18.0, 14.0 * (e.hp / e.max_hp).max(0.0), 2.0, rgb(240, 60, 60));
