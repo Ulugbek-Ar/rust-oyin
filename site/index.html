@@ -132,6 +132,11 @@ ul.feat { margin: 10px 0 0; padding-left: 18px; color: var(--dim); }
   // ---------- data ----------
   var REL = 'https://github.com/Ulugbek-Ar/rust-oyin/releases/download/apk/';
   var GAMES = [
+    { id: 'ajdar', name: 'Ajdar Parvozi', genre: '3D parvoz', created: '2026-11-22', updated: '2026-11-22',
+      apk: null, web: { page: 'ajdar.html', mb: 0.63 }, status: ['ok', 'Yangi · 3D'],
+      note: "Android APK yig'ilmoqda va emulyatorda sinalmoqda. Hozircha brauzerda o'ynang.",
+      desc: "Quyosh botayotgan kanyon bo'ylab ajdarda uching. Qoyalardan qoching, oltin halqalardan o'ting, kristallarni yig'ing.",
+      feat: ["Past-poligonli 3D kanyon, tuman va botayotgan quyosh", "Cheksiz, har safar yangi yo'l: ustunlar, halqalar, minalar", "Turbo tezlanish va oshib boruvchi tezlik"] },
     { id: 'ritsar', name: "Qal'a Ritsari", genre: 'Action RPG', created: '2026-11-21', updated: '2026-11-22',
       apk: { url: REL + 'QALA-RITSARI.apk', mb: 1.7 }, web: { page: 'game.html', mb: 0.69 }, status: ['ok', 'Android + Brauzer'],
       note: '',
@@ -165,10 +170,25 @@ ul.feat { margin: 10px 0 0; padding-left: 18px; color: var(--dim); }
   }
   function icon(cv, id) {
     var x = cv.getContext('2d'); cv.width = cv.height = 16;
+    if (id === 'ajdar') { x.fillStyle = '#b84d6b'; x.fillRect(0, 0, 16, 16); x.fillStyle = '#ffe0a0'; x.fillRect(6, 10, 4, 3);
+      x.fillStyle = '#962e3e'; x.beginPath(); x.moveTo(8, 7); x.lineTo(1, 4); x.lineTo(5, 9); x.moveTo(8, 7); x.lineTo(15, 4); x.lineTo(11, 9); x.fill();
+      x.fillStyle = '#ce2c2c'; x.beginPath(); x.moveTo(8, 3); x.lineTo(6, 8); x.lineTo(8, 11); x.lineTo(10, 8); x.fill(); return; }
     blit(x, id === 'zulmat' ? SPR.orb : SPR.hero, 0, 0, 1);
   }
   function cover(cv, id) {
     var x = cv.getContext('2d'); cv.width = 160; cv.height = 90;
+    if (id === 'ajdar') {
+      var sky = x.createLinearGradient(0, 0, 0, 90); sky.addColorStop(0, '#28144a'); sky.addColorStop(.55, '#b84d6b'); sky.addColorStop(1, '#ff9e61');
+      x.fillStyle = sky; x.fillRect(0, 0, 160, 90);
+      var sun = x.createRadialGradient(64, 46, 2, 64, 46, 26); sun.addColorStop(0, '#fff0c0'); sun.addColorStop(.4, 'rgba(255,220,150,.9)'); sun.addColorStop(1, 'rgba(255,200,140,0)'); x.fillStyle = sun; x.fillRect(30, 12, 70, 70);
+      [['#8a4034', [[0,90],[0,40],[22,30],[40,52],[58,90]]], ['#6e3330', [[160,90],[160,34],[134,28],[112,50],[96,90]]], ['#d69660', [[58,90],[72,58],[90,58],[96,90]]], ['#a85a45', [[0,90],[0,62],[30,56],[48,90]]], ['#93473b', [[160,90],[160,58],[128,54],[110,90]]]].forEach(function (s) {
+        x.fillStyle = s[0]; x.beginPath(); s[1].forEach(function (p, i) { i ? x.lineTo(p[0], p[1]) : x.moveTo(p[0], p[1]); }); x.fill(); });
+      x.fillStyle = '#962e3e'; x.beginPath(); x.moveTo(80, 40); x.lineTo(44, 28); x.lineTo(64, 46); x.moveTo(80, 40); x.lineTo(116, 28); x.lineTo(96, 46); x.fill();
+      x.fillStyle = '#ecb040'; x.beginPath(); x.moveTo(44, 28); x.lineTo(52, 31); x.lineTo(64, 46); x.moveTo(116, 28); x.lineTo(108, 31); x.lineTo(96, 46); x.fill();
+      x.fillStyle = '#ce2c2c'; x.beginPath(); x.moveTo(80, 28); x.lineTo(74, 42); x.lineTo(80, 54); x.lineTo(86, 42); x.fill();
+      x.strokeStyle = '#ffd25a'; x.lineWidth = 1.5; x.beginPath(); x.arc(118, 58, 6, 0, Math.PI * 2); x.stroke();
+      return;
+    }
     if (id === 'ritsar') {
       x.fillStyle = '#241d30'; x.fillRect(0, 0, 160, 90);
       for (var yy = 0; yy < 90; yy += 6) for (var xx = (yy / 6) % 2 ? -6 : 0; xx < 160; xx += 12) { x.fillStyle = (xx + yy) % 5 ? '#3a304a' : '#43385a'; x.fillRect(xx + 1, yy + 1, 10, 4); }
