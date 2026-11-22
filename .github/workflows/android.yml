@@ -3,7 +3,7 @@ name: Android APK
 on:
   push:
     branches: [main, ccr-6beb9320-7sxxbq]
-    paths-ignore: ['ajdar/**', 'hokkey/**', 'mudofaa/**', 'pamir/**', 'site/**', '.github/workflows/pamir.yml', '.github/workflows/mudofaa.yml', '.github/workflows/ajdar.yml', '.github/workflows/hokkey.yml']
+    paths-ignore: ['ajdar/**', 'hokkey/**', 'mudofaa/**', 'pamir/**', 'buzar/**', 'site/**', '.github/workflows/buzar.yml', '.github/workflows/pamir.yml', '.github/workflows/mudofaa.yml', '.github/workflows/ajdar.yml', '.github/workflows/hokkey.yml']
   workflow_dispatch:
 
 permissions:

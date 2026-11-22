@@ -132,6 +132,11 @@ ul.feat { margin: 10px 0 0; padding-left: 18px; color: var(--dim); }
   // ---------- data ----------
   var REL = 'https://github.com/Ulugbek-Ar/rust-oyin/releases/download/apk/';
   var GAMES = [
+    { id: 'buzar', name: "Qal'a Buzar", genre: 'Fizika jumboq', created: '2026-11-22', updated: '2026-11-22',
+      apk: null, web: { page: 'buzar.html', mb: 1.3 }, status: ['ok', 'Yangi'],
+      note: "Android APK yig'ilmoqda va emulyatorda sinalmoqda. Hozircha brauzerda o'ynang.",
+      desc: "Katapultni torting, nishonga oling va devlar qal'asini buzing. Haqiqiy fizika: yog'och, tosh va shisha bloklar zarba kuchiga qarab sinadi va qulaydi.",
+      feat: ["Haqiqiy 2D fizika (rapier): bloklar ag'dariladi, sinadi, qulaydi", "8 ta bosqich, cheklangan toshlar, 3 yulduz tizimi", "Uchish yo'li ko'rsatkichi, yorilish va parchalanish effektlari"] },
     { id: 'pamir', name: 'Pamir Poygasi', genre: '3D poyga', created: '2026-11-22', updated: '2026-11-22',
       apk: null, web: { page: 'pamir.html', mb: 0.66 }, status: ['ok', 'Yangi · 3D'],
       note: "Android APK yig'ilmoqda va emulyatorda sinalmoqda. Hozircha brauzerda o'ynang.",
@@ -185,6 +190,9 @@ ul.feat { margin: 10px 0 0; padding-left: 18px; color: var(--dim); }
   }
   function icon(cv, id) {
     var x = cv.getContext('2d'); cv.width = cv.height = 16;
+    if (id === 'buzar') { x.fillStyle = '#80b8f0'; x.fillRect(0, 0, 16, 16); x.fillStyle = '#6e5032'; x.fillRect(0, 13, 16, 3);
+      x.fillStyle = '#c48c50'; x.fillRect(8, 6, 2, 7); x.fillRect(13, 6, 2, 7); x.fillRect(7, 5, 9, 2); x.fillStyle = '#6ebe50'; x.beginPath(); x.arc(11.5, 3.5, 2.5, 0, 7); x.fill();
+      x.fillStyle = '#6e6e78'; x.beginPath(); x.arc(4, 7, 2, 0, 7); x.fill(); return; }
     if (id === 'pamir') { x.fillStyle = '#5a8ce0'; x.fillRect(0, 0, 16, 9); x.fillStyle = '#6e96d0'; x.fillRect(0, 9, 16, 7);
       x.fillStyle = '#8c96aa'; x.beginPath(); x.moveTo(0, 10); x.lineTo(5, 3); x.lineTo(10, 10); x.fill(); x.fillStyle = '#f0f4fa'; x.fillRect(4, 3, 2, 2);
       x.fillStyle = '#4a4c54'; x.beginPath(); x.moveTo(4, 16); x.lineTo(7, 10); x.lineTo(9, 10); x.lineTo(12, 16); x.fill(); x.fillStyle = '#e63228'; x.fillRect(5, 12, 6, 3); return; }
@@ -200,6 +208,21 @@ ul.feat { margin: 10px 0 0; padding-left: 18px; color: var(--dim); }
   }
   function cover(cv, id) {
     var x = cv.getContext('2d'); cv.width = 160; cv.height = 90;
+    if (id === 'buzar') {
+      var sk2 = x.createLinearGradient(0, 0, 0, 90); sk2.addColorStop(0, '#6bade8'); sk2.addColorStop(1, '#d8ecff'); x.fillStyle = sk2; x.fillRect(0, 0, 160, 90);
+      x.fillStyle = '#96be8c'; [[10, 70, 26], [55, 74, 30], [110, 70, 28], [150, 76, 24]].forEach(function (h) { x.beginPath(); x.arc(h[0], h[1] + 10, h[2], Math.PI, 0); x.fill(); });
+      x.fillStyle = '#6e5032'; x.fillRect(0, 78, 160, 12); x.fillStyle = '#5aa046'; x.fillRect(0, 76, 160, 3);
+      x.fillStyle = '#6e5032'; x.fillRect(0, 64, 26, 14); x.fillStyle = '#5aa046'; x.fillRect(0, 62, 26, 3);
+      x.strokeStyle = '#50321a'; x.lineWidth = 2; x.beginPath(); x.moveTo(10, 62); x.lineTo(13, 52); x.moveTo(20, 62); x.lineTo(17, 52); x.stroke();
+      function blk(px, py, w, h, c, o) { x.fillStyle = c; x.fillRect(px, py, w, h); x.strokeStyle = o; x.lineWidth = 1; x.strokeRect(px + .5, py + .5, w - 1, h - 1); }
+      blk(104, 50, 4, 26, '#c48c50', '#6e4623'); blk(130, 50, 4, 26, '#c48c50', '#6e4623'); blk(100, 46, 38, 5, '#c48c50', '#6e4623'); blk(110, 62, 18, 14, '#9696a2', '#50505c');
+      blk(140, 56, 4, 20, 'rgba(180,230,255,.6)', '#e6f8ff');
+      function dev(cx, cy) { x.fillStyle = '#6ebe50'; x.beginPath(); x.arc(cx, cy, 5, 0, 7); x.fill(); x.fillStyle = '#f0e6c8'; x.fillRect(cx - 4, cy - 8, 2, 3); x.fillRect(cx + 2, cy - 8, 2, 3); x.fillStyle = '#fff'; x.fillRect(cx - 3, cy - 2, 2, 2); x.fillRect(cx + 1, cy - 2, 2, 2); }
+      dev(119, 40); dev(119, 57);
+      x.fillStyle = 'rgba(255,255,255,.8)'; for (var i = 0; i < 9; i++) { var tt = i / 9; x.fillRect(16 + tt * 74, 50 - Math.sin(tt * Math.PI) * 30, 1.5, 1.5); }
+      x.fillStyle = '#6e6e78'; x.beginPath(); x.arc(92, 34, 4, 0, 7); x.fill();
+      return;
+    }
     if (id === 'pamir') {
       var sk = x.createLinearGradient(0, 0, 0, 50); sk.addColorStop(0, '#3c78dc'); sk.addColorStop(1, '#bcdcf8'); x.fillStyle = sk; x.fillRect(0, 0, 160, 90);
       [[0, 50, 30, 12, 60], [40, 50, 75, 6, 110], [95, 50, 125, 14, 160]].forEach(function (m) { x.fillStyle = '#7886a0'; x.beginPath(); x.moveTo(m[0], m[1]); x.lineTo(m[2], m[3]); x.lineTo(m[4], m[1]); x.fill();
