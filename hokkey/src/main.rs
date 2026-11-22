@@ -309,7 +309,7 @@ async fn load_audio() -> (Sfx, Sound) {
     (sfx, music)
 }
 
-fn conf() -> Conf { Conf { window_title: "NEON HOKKEY".into(), window_width: 1280, window_height: 720, high_dpi: true, sample_count: 4, ..Default::default() } }
+fn conf() -> Conf { Conf { window_title: "NEON HOKKEY".into(), window_width: 1280, window_height: 720, high_dpi: true, sample_count: 1, ..Default::default() } }
 
 #[macroquad::main(conf)]
 async fn main() {
