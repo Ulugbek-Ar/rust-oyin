@@ -1,5 +1,5 @@
 // QAL'A RITSARI — pixel action RPG (Rust + macroquad)
-use macroquad::audio::{load_sound_from_bytes, play_sound, PlaySoundParams, Sound};
+use macroquad::audio::{load_sound_from_bytes, play_sound, set_sound_volume, PlaySoundParams, Sound};
 use macroquad::prelude::*;
 use std::f32::consts::{PI, TAU};
 
@@ -109,12 +109,13 @@ fn wall_tex() -> Texture2D {
     tex(&img)
 }
 
-struct Art { hero: Texture2D, knight: Texture2D, slime: Texture2D, bat: Texture2D, skel: Texture2D, boss: Texture2D,
+struct Art { merchant: Texture2D, hero: Texture2D, knight: Texture2D, slime: Texture2D, bat: Texture2D, skel: Texture2D, boss: Texture2D,
     coin: Texture2D, potion: Texture2D, heart: Texture2D, chest: Texture2D, floor: [Texture2D; 3], wall: Texture2D }
 const KNIGHT_SWAP: [(char, char); 7] = [('b', 'R'), ('B', 'D'), ('h', 'M'), ('H', 'N'), ('y', 'r'), ('s', 'k'), ('e', 'r')];
 impl Art {
     fn load() -> Art {
         Art {
+            merchant: tex(&sprite_img(&HERO, 16, &[('b', 'p'), ('B', 'd'), ('h', 'y'), ('H', 'l'), ('y', 'r')])),
             hero: tex(&sprite_img(&HERO, 16, &[])), knight: tex(&sprite_img(&HERO, 16, &KNIGHT_SWAP)),
             slime: tex(&sprite_img(&SLIME, 16, &[])), bat: tex(&sprite_img(&BAT, 16, &[])),
             skel: tex(&sprite_img(&SKEL, 16, &[])), boss: tex(&sprite_img(&BOSS, 16, &[])),
@@ -130,8 +131,8 @@ fn spr(t: &Texture2D, x: f32, y: f32, w: f32, tint: Color, flip: bool, rot: f32)
 
 // ---------------- world ----------------
 #[derive(Clone, Copy, PartialEq)]
-enum RK { Start, Normal, Treasure, Boss }
-struct Room { g: (i32, i32), doors: [bool; 4], kind: RK, cleared: bool, visited: bool, tiles: Vec<u8>, chest: bool }
+enum RK { Start, Normal, Treasure, Boss, Shop }
+struct Room { g: (i32, i32), doors: [bool; 4], kind: RK, cleared: bool, visited: bool, tiles: Vec<u8>, chest: bool, stock: [u8; 4] }
 impl Room {
     fn new(g: (i32, i32)) -> Room {
         let mut tiles = vec![0u8; RW * RH];
@@ -144,13 +145,14 @@ impl Room {
             _ => &[],
         };
         for &(x, y) in pts { tiles[y * RW + x] = 2; }
-        Room { g, doors: [false; 4], kind: RK::Normal, cleared: false, visited: false, tiles, chest: false }
+        Room { g, doors: [false; 4], kind: RK::Normal, cleared: false, visited: false, tiles, chest: false, stock: [0; 4] }
     }
     fn set_kind(&mut self, k: RK) {
         self.kind = k;
         if k != RK::Normal { for t in self.tiles.iter_mut() { if *t == 2 { *t = 0; } } }
-        self.cleared = k == RK::Start || k == RK::Treasure;
+        self.cleared = k == RK::Start || k == RK::Treasure || k == RK::Shop;
         self.chest = k == RK::Treasure;
+        if k == RK::Shop { self.stock = [3, 1, 1, 1]; }
     }
 }
 fn door_at(tx: i32, ty: i32) -> Option<usize> {
@@ -194,7 +196,10 @@ fn gen_floor(floor: u32) -> Vec<Room> {
     let boss = *pool.iter().max_by_key(|&&i| dist[i]).unwrap();
     rooms[0].set_kind(RK::Start);
     rooms[boss].set_kind(RK::Boss);
-    if let Some(&t) = pool.iter().filter(|&&i| i != boss).max_by_key(|&&i| dist[i]) { rooms[t].set_kind(RK::Treasure); }
+    let mut tr = usize::MAX;
+    if let Some(&t) = pool.iter().filter(|&&i| i != boss).max_by_key(|&&i| dist[i]) { rooms[t].set_kind(RK::Treasure); tr = t; }
+    let cands: Vec<usize> = (1..rooms.len()).filter(|&i| i != boss && i != tr && dist[i] >= 1).collect();
+    if !cands.is_empty() { let s = cands[rand::gen_range(0, cands.len())]; rooms[s].set_kind(RK::Shop); }
     rooms
 }
 
@@ -202,7 +207,7 @@ fn gen_floor(floor: u32) -> Vec<Room> {
 #[derive(Clone, Copy, PartialEq)]
 enum EK { Slime, Bat, Skel, Knight, Boss }
 struct Enemy { kind: EK, pos: Vec2, vel: Vec2, knock: Vec2, hp: f32, max_hp: f32, dmg: f32, r: f32, t: f32, atk: f32,
-    state: u8, dir: Vec2, flash: f32, spawn: f32, phase: u32 }
+    state: u8, dir: Vec2, flash: f32, spawn: f32, phase: u32, bv: u8 }
 #[derive(Clone, Copy, PartialEq)]
 enum SK { Arrow, Orb, Fire }
 struct Shot { pos: Vec2, vel: Vec2, dmg: f32, kind: SK, life: f32 }
@@ -227,16 +232,31 @@ const PERKS: [Perk; 6] = [
 ];
 
 struct Sfx { swing: Sound, hit: Sound, kill: Sound, coin: Sound, hurt: Sound, fire: Sound, level: Sound, door: Sound, potion: Sound, roar: Sound }
-fn play(s: &Sound, volume: f32) { play_sound(s, PlaySoundParams { looped: false, volume }); }
+static SFX_ON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+static MUSIC_ON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+fn sfx_on() -> bool { SFX_ON.load(std::sync::atomic::Ordering::Relaxed) }
+fn music_on() -> bool { MUSIC_ON.load(std::sync::atomic::Ordering::Relaxed) }
+fn play(s: &Sound, volume: f32) { if sfx_on() { play_sound(s, PlaySoundParams { looped: false, volume }); } }
+const BOSS_NAMES: [&str; 3] = ["SOYA LORDI", "SUYAK QIROLI", "BOTQOQ QIROLI"];
+const BOSS_SUB: [&str; 3] = ["Zulmat qal'asining qo'riqchisi", "O'liklar qo'shinining sardori", "Zindon botqog'ining ochko'z hukmdori"];
+const SHOP: [(&str, u32); 4] = [("Iksir", 30), ("Yurak +20", 60), ("Qilich +20%", 90), ("Mana +20", 50)];
+fn shop_slots() -> [Vec2; 4] { let c = room_center() + vec2(0.0, 10.0); [c + vec2(-48.0, 0.0), c + vec2(-16.0, 0.0), c + vec2(16.0, 0.0), c + vec2(48.0, 0.0)] }
+fn ui_btn(r: Rect, label: &str, col: Color) {
+    draw_rectangle(r.x, r.y + 5.0, r.w, r.h, Color::new(col.r * 0.45, col.g * 0.45, col.b * 0.45, 1.0));
+    draw_rectangle(r.x, r.y, r.w, r.h, col);
+    draw_rectangle(r.x, r.y, r.w, 3.0, Color::new(1.0, 1.0, 1.0, 0.35));
+    txt(label, r.x + r.w / 2.0 - tw(label, 26.0) / 2.0, r.y + r.h / 2.0 + 9.0, 26.0, rgb(20, 12, 28));
+}
+fn pause_btn() -> Rect { Rect::new(vw() - 20.0 - GRID as f32 * 14.0 - 66.0, 14.0, 52.0, 52.0) }
 
 #[derive(PartialEq)]
-enum State { Title, Play, LevelUp, Dead }
+enum State { Title, Play, LevelUp, Dead, Pause }
 
 struct Game {
     state: State, floor: u32, rooms: Vec<Room>, cur: usize, p: Player, enemies: Vec<Enemy>, shots: Vec<Shot>,
     items: Vec<Item>, parts: Vec<Particle>, texts: Vec<FText>, t: f32, over_t: f32, shake: f32, hitstop: f32, fade: f32,
     kills: u32, choices: [usize; 3], touch_mode: bool, stick: Option<(u64, Vec2, Vec2)>, atk_touch: Option<u64>,
-    btn: [bool; 4], best_floor: u32, boss_t: f32,
+    btn: [bool; 4], best_floor: u32, boss_t: f32, shop_in: Option<usize>,
 }
 
 fn room_center() -> Vec2 { vec2(RW as f32 * T / 2.0, RH as f32 * T / 2.0) }
@@ -259,7 +279,7 @@ impl Game {
             combo: 0, combo_t: 0.0, walk_t: 0.0 };
         let mut g = Game { state: State::Title, floor: 1, rooms: gen_floor(1), cur: 0, p, enemies: vec![], shots: vec![],
             items: vec![], parts: vec![], texts: vec![], t: 0.0, over_t: 0.0, shake: 0.0, hitstop: 0.0, fade: 0.6, kills: 0,
-            choices: [0, 1, 2], touch_mode, stick: None, atk_touch: None, btn: [false; 4], best_floor, boss_t: 0.0 };
+            choices: [0, 1, 2], touch_mode, stick: None, atk_touch: None, btn: [false; 4], best_floor, boss_t: 0.0, shop_in: None };
         g.rooms[0].visited = true;
         g
     }
@@ -297,14 +317,15 @@ impl Game {
         let f = (self.floor - 1) as f32;
         let hp = hp * (1.0 + 0.45 * f);
         Enemy { kind, pos, vel: Vec2::ZERO, knock: Vec2::ZERO, hp, max_hp: hp, dmg: dmg * (1.0 + 0.25 * f), r,
-            t: rand::gen_range(0.0, 1.0), atk: rand::gen_range(0.8, 1.8), state: 0, dir: Vec2::X, flash: 0.0, spawn: 0.7, phase: 0 }
+            t: rand::gen_range(0.0, 1.0), atk: rand::gen_range(0.8, 1.8), state: 0, dir: Vec2::X, flash: 0.0, spawn: 0.7, phase: 0, bv: if kind == EK::Boss { ((self.floor - 1) % 3) as u8 } else { 0 } }
     }
 
     fn enter_room(&mut self, sfx: &Sfx) {
         self.rooms[self.cur].visited = true;
         if self.rooms[self.cur].cleared { return; }
         if self.rooms[self.cur].kind == RK::Boss {
-            let e = self.mk_enemy(EK::Boss, room_center() - vec2(0.0, 20.0));
+            let mut e = self.mk_enemy(EK::Boss, room_center() - vec2(0.0, 20.0));
+            e.spawn = 1.8; e.atk = 1.5;
             self.enemies.push(e);
             self.boss_t = 2.5;
             play(&sfx.roar, 0.8);
@@ -381,7 +402,7 @@ impl Game {
 
     fn hurt(&mut self, dmg: f32, from: Vec2, sfx: &Sfx) {
         if self.p.inv > 0.0 || self.p.roll_t > 0.0 || self.state != State::Play { return; }
-        self.p.hp -= dmg; self.p.inv = 0.8; self.shake = 6.0; self.hitstop = 0.06;
+        self.p.hp -= dmg; self.p.inv = 1.1; self.shake = 6.0; self.hitstop = 0.06;
         self.p.vel += (self.p.pos - from).normalize_or(Vec2::Y) * 160.0;
         let pos = self.p.pos;
         self.text(pos - vec2(0.0, 18.0), format!("-{}", dmg.round() as i32), rgb(255, 80, 80));
@@ -508,7 +529,7 @@ impl Game {
                     1 => { e.vel *= 0.8; if e.t > 0.5 { e.state = 2; e.t = 0.0; } }
                     _ => { e.vel = e.dir * 240.0; if e.t > 0.4 { e.state = 0; e.atk = 1.6; } }
                 },
-                EK::Boss => match e.state {
+                EK::Boss if e.bv == 0 => match e.state {
                     0 => {
                         e.vel = e.vel.lerp(to * 30.0, (dt * 2.0).min(1.0));
                         if e.atk <= 0.0 {
@@ -519,7 +540,7 @@ impl Game {
                                 3 => {
                                     for k in -2..=2 { new_shots.push(Shot { pos: src, vel: Vec2::from_angle(to.to_angle() + k as f32 * 0.2) * 130.0, dmg: e.dmg * 0.8, kind: SK::Orb, life: 4.0 }); }
                                     e.atk = 1.6;
-                                    if e.hp < e.max_hp * 0.5 { for s in [-1.0, 1.0] { summons.push(e.pos + vec2(s * 24.0, 0.0)); } }
+                                    if e.hp < e.max_hp * 0.5 { for s in [-1.0, 1.0] { summons.push((EK::Bat, e.pos + vec2(s * 24.0, 0.0))); } }
                                 }
                                 _ => {
                                     let n = if e.hp < e.max_hp * 0.5 { 18 } else { 12 };
@@ -533,11 +554,44 @@ impl Game {
                     1 => { e.vel *= 0.85; if e.t > 0.6 { e.state = 2; e.t = 0.0; roar = true; } }
                     _ => { e.vel = e.dir * 260.0; if e.t > 0.5 { e.state = 0; e.atk = 1.2; } }
                 },
+                EK::Boss if e.bv == 1 => match e.state {
+                    // Suyak Qiroli: arrow fans, raises skeletons, charges
+                    0 => {
+                        e.vel = e.vel.lerp(to * 28.0, (dt * 2.0).min(1.0));
+                        if e.atk <= 0.0 {
+                            e.phase += 1; e.t = 0.0;
+                            let src = e.pos - vec2(0.0, 14.0);
+                            match e.phase % 3 {
+                                1 => { let n = if e.hp < e.max_hp * 0.5 { 9 } else { 7 }; for k in 0..n { let a = to.to_angle() + (k as f32 / (n - 1) as f32 - 0.5) * 1.1; new_shots.push(Shot { pos: src, vel: Vec2::from_angle(a) * 135.0, dmg: e.dmg * 0.7, kind: SK::Arrow, life: 3.0 }); } e.atk = 1.7; }
+                                2 => { for s in [-1.0, 1.0] { summons.push((EK::Skel, e.pos + vec2(s * 28.0, 6.0))); } e.atk = 2.2; roar = true; }
+                                _ => { e.state = 1; e.dir = to; }
+                            }
+                        }
+                    }
+                    1 => { e.vel *= 0.85; if e.t > 0.7 { e.state = 2; e.t = 0.0; roar = true; } }
+                    _ => { e.vel = e.dir * 240.0; if e.t > 0.55 { e.state = 0; e.atk = 1.3; } }
+                },
+                EK::Boss => {
+                    // Botqoq Qiroli: big hops, shockwave rings on landing, splits when hurt
+                    if e.state == 0 {
+                        e.vel *= (-dt * 6.0).exp();
+                        if e.t > 1.25 { e.t = 0.0; e.state = 1; e.vel = to * (130.0 + (1.0 - e.hp / e.max_hp) * 70.0); }
+                    } else if e.t > 0.5 {
+                        e.state = 0; e.t = 0.0; e.vel = Vec2::ZERO; roar = true;
+                        let n = if e.hp < e.max_hp * 0.5 { 14 } else { 10 };
+                        let off = rand::gen_range(0.0, TAU);
+                        for k in 0..n { new_shots.push(Shot { pos: e.pos - vec2(0.0, 4.0), vel: Vec2::from_angle(off + k as f32 / n as f32 * TAU) * 75.0, dmg: e.dmg * 0.7, kind: SK::Orb, life: 3.0 }); }
+                    }
+                    if (e.phase == 0 && e.hp < e.max_hp * 0.6) || (e.phase == 1 && e.hp < e.max_hp * 0.3) {
+                        e.phase += 1;
+                        for k in 0..3 { summons.push((EK::Slime, e.pos + Vec2::from_angle(k as f32 * TAU / 3.0) * 22.0)); }
+                    }
+                }
             }
             e.knock *= (-dt * 8.0).exp();
             let r = if e.kind == EK::Boss { 9.0 } else { 5.0 };
             e.pos = self.move_body(e.pos, (e.vel + e.knock) * dt, r, fly);
-            if dist < e.r + 5.0 { contact = Some((e.dmg, e.pos)); }
+            if dist < e.r + 5.0 { contact = Some((if e.kind == EK::Boss { e.dmg * 0.7 } else { e.dmg }, e.pos)); }
         }
         // separation
         for i in 0..es.len() {
@@ -552,7 +606,7 @@ impl Game {
         }
         self.enemies = es;
         self.shots.extend(new_shots);
-        for s in summons { let e = self.mk_enemy(EK::Bat, s); self.enemies.push(e); }
+        for (k, s) in summons { let mut e = self.mk_enemy(k, s); if k == EK::Slime { e.hp *= 0.6; e.max_hp = e.hp; } self.enemies.push(e); }
         if roar { play(&sfx.roar, 0.4); self.shake = 4.0; }
         if let Some((d, from)) = contact { self.hurt(d, from, sfx); }
 
@@ -606,7 +660,7 @@ impl Game {
             self.rooms[self.cur].cleared = true;
             play(&sfx.door, 0.8);
             let pos = self.p.pos;
-            let msg = if self.rooms[self.cur].kind == RK::Boss { "SOYA LORDI YENGILDI!" } else { "Eshiklar ochildi" };
+            let msg = if self.rooms[self.cur].kind == RK::Boss { format!("{} YENGILDI!", BOSS_NAMES[((self.floor - 1) % 3) as usize]) } else { "Eshiklar ochildi".to_string() };
             self.text(pos - vec2(0.0, 24.0), msg.to_string(), rgb(180, 200, 255));
         }
 
@@ -626,6 +680,26 @@ impl Game {
                 IK::Potion => { self.p.potions += 1; self.text(pp - vec2(0.0, 18.0), "+Iksir".into(), rgb(255, 120, 120)); play(&sfx.potion, 0.5); }
                 IK::Heart => { self.p.hp = (self.p.hp + 20.0).min(self.p.max_hp); self.text(pp - vec2(0.0, 18.0), "+20".into(), rgb(90, 255, 120)); play(&sfx.coin, 0.4); }
             }
+        }
+
+        // ---- shop ----
+        if self.rooms[self.cur].kind == RK::Shop {
+            let slot = shop_slots().iter().position(|s| s.distance(pp) < 9.0);
+            if slot.is_some() && slot != self.shop_in {
+                let i = slot.unwrap();
+                let price = (SHOP[i].1 as f32 * (1.0 + 0.25 * (self.floor - 1) as f32)) as u32;
+                let sp = shop_slots()[i] - vec2(0.0, 14.0);
+                if self.rooms[self.cur].stock[i] == 0 { self.text(sp, "Tugadi".into(), rgb(200, 190, 210)); }
+                else if self.p.gold < price { self.text(sp, "Oltin yetmaydi".into(), rgb(255, 120, 120)); }
+                else {
+                    self.p.gold -= price; self.rooms[self.cur].stock[i] -= 1;
+                    match i { 0 => self.p.potions += 1, 1 => { self.p.max_hp += 20.0; self.p.hp = self.p.max_hp; } 2 => self.p.atk *= 1.2, _ => { self.p.max_mp += 20.0; self.p.mp = self.p.max_mp; } }
+                    self.text(sp, format!("{}!", SHOP[i].0), rgb(255, 215, 90));
+                    self.burst(shop_slots()[i], rgb(255, 215, 90), 18, 60.0);
+                    play(&sfx.level, 0.5);
+                }
+            }
+            self.shop_in = slot;
         }
 
         // ---- chest & portal ----
@@ -712,6 +786,24 @@ impl Game {
         }
         let c = room_center();
         if room.kind == RK::Treasure { spr(&art.chest, c.x - 8.0, c.y - 12.0, 16.0, if room.chest { WHITE } else { rgb(110, 100, 110) }, false, 0.0); }
+        if room.kind == RK::Shop {
+            draw_rectangle(c.x - 66.0, c.y + 2.0, 132.0, 18.0, rgb(120, 34, 44));
+            draw_rectangle_lines(c.x - 66.0, c.y + 2.0, 132.0, 18.0, 1.0, rgb(230, 180, 70));
+            spr(&art.merchant, c.x - 8.0, c.y - 40.0 + (self.t * 2.0).sin(), 16.0, WHITE, false, 0.0);
+            draw_rectangle(c.x - 14.0, c.y - 26.0, 28.0, 3.0, rgb(150, 100, 60));
+            for (i, sp) in shop_slots().iter().enumerate() {
+                let a = if room.stock[i] > 0 { 1.0 } else { 0.3 };
+                draw_rectangle(sp.x - 5.0, sp.y + 1.0, 10.0, 5.0, Color::new(0.45, 0.42, 0.5, a));
+                let bob = (self.t * 3.0 + i as f32).sin() * 1.2 - 6.0;
+                let tint = Color::new(1.0, 1.0, 1.0, a);
+                match i {
+                    0 => spr(&art.potion, sp.x - 4.0, sp.y + bob - 4.0, 8.0, tint, false, 0.0),
+                    1 => spr(&art.heart, sp.x - 4.0, sp.y + bob - 4.0, 8.0, tint, false, 0.0),
+                    2 => { draw_line(sp.x - 4.0, sp.y + bob + 4.0, sp.x + 4.0, sp.y + bob - 4.0, 2.0, Color::new(0.86, 0.9, 0.95, a)); draw_line(sp.x - 3.0, sp.y + bob + 1.0, sp.x - 1.0, sp.y + bob + 3.0, 2.0, Color::new(1.0, 0.84, 0.35, a)); }
+                    _ => { draw_circle(sp.x, sp.y + bob, 3.5, Color::new(0.3, 0.5, 1.0, a)); draw_circle(sp.x - 1.0, sp.y + bob - 1.0, 1.2, Color::new(0.8, 0.9, 1.0, a)); }
+                }
+            }
+        }
         let portal = room.kind == RK::Boss && room.cleared;
         if portal {
             for i in 0..4 { draw_circle_lines(c.x, c.y, 4.0 + i as f32 * 3.0 + (self.t * 4.0 + i as f32).sin(), 1.2, Color::new(0.6, 0.4, 1.0, 0.8 - i as f32 * 0.15)); }
@@ -755,7 +847,7 @@ impl Game {
             match s.kind { SK::Fire => glow(s.pos, 4.0, rgb(255, 140, 40)), SK::Orb => glow(s.pos, 3.5, rgb(180, 90, 255)), _ => {} }
         }
         if portal { glow(c, 8.0, rgb(150, 100, 255)); }
-        for e in &self.enemies { if e.kind == EK::Boss { glow(e.pos - vec2(0.0, 30.0), 6.0, rgb(255, 40, 40)); } }
+        for e in &self.enemies { if e.kind == EK::Boss && e.bv == 0 { glow(e.pos - vec2(0.0, 30.0), 6.0, rgb(255, 40, 40)); } }
         set_camera(&Camera2D { target: vec2(vw(), VH) / 2.0, zoom: vec2(2.0 / vw(), 2.0 / VH), ..Default::default() });
     }
 
@@ -798,10 +890,11 @@ impl Game {
         let (tex, bob) = match e.kind {
             EK::Slime => (&art.slime, -(e.t.min(0.9) / 0.9 * PI).sin() * 3.0),
             EK::Bat => (&art.bat, (e.t * 10.0).sin() * 2.0 - 6.0),
-            EK::Skel => (&art.skel, 0.0), EK::Knight => (&art.knight, 0.0), EK::Boss => (&art.boss, (self.t * 2.0).sin() * 2.0),
+            EK::Skel => (&art.skel, 0.0), EK::Knight => (&art.knight, 0.0), EK::Boss => (match e.bv { 1 => &art.skel, 2 => &art.slime, _ => &art.boss }, if e.bv == 2 && e.state == 1 { -(e.t / 0.5 * PI).sin() * 14.0 } else { (self.t * 2.0).sin() * 2.0 }),
         };
         let warn = (e.kind == EK::Knight || big) && e.state == 1 && (self.t * 16.0) as i32 % 2 == 0;
         let tint = if e.flash > 0.0 { Color::new(1.0, 0.45, 0.45, 1.0) } else if warn { Color::new(1.0, 0.85, 0.3, 1.0) } else { WHITE };
+        let tint = if big && e.flash <= 0.0 && !warn { match e.bv { 1 => Color::new(1.0, 0.86, 0.5, 1.0), 2 => Color::new(0.6, 0.9, 0.55, 1.0), _ => WHITE } } else { tint };
         let flip = (self.p.pos.x - e.pos.x) < 0.0;
         spr(tex, e.pos.x - sz / 2.0, e.pos.y - sz + 2.0 + bob, sz, tint, flip, 0.0);
         if !big && e.hp < e.max_hp {
@@ -841,20 +934,22 @@ impl Game {
             if r.doors[1] { draw_rectangle(x + cell - 2.0, y + cell / 2.0 - 1.0, 4.0, 2.0, rgb(90, 85, 110)); }
             if r.doors[2] { draw_rectangle(x + cell / 2.0 - 1.0, y + cell - 2.0, 2.0, 4.0, rgb(90, 85, 110)); }
             let col = if i == self.cur { WHITE } else if !r.visited { rgb(50, 45, 65) } else {
-                match r.kind { RK::Boss => rgb(220, 50, 60), RK::Treasure => rgb(255, 215, 90), _ => rgb(110, 105, 140) } };
+                match r.kind { RK::Boss => rgb(220, 50, 60), RK::Treasure => rgb(255, 215, 90), RK::Shop => rgb(90, 210, 230), _ => rgb(110, 105, 140) } };
             let col = if !r.visited && r.kind == RK::Boss { rgb(110, 30, 40) } else { col };
             draw_rectangle(x + 1.0, y + 1.0, cell - 2.0, cell - 2.0, col);
         }
 
         if let Some(b) = self.enemies.iter().find(|e| e.kind == EK::Boss) {
             let bw = 520.0_f32.min(w - 80.0);
-            txt("SOYA LORDI", w / 2.0 - tw("SOYA LORDI", 22.0) / 2.0, VH - 52.0, 22.0, rgb(200, 140, 255));
+            let bn = BOSS_NAMES[b.bv as usize];
+            txt(bn, w / 2.0 - tw(bn, 22.0) / 2.0, VH - 52.0, 22.0, rgb(200, 140, 255));
             bar(w / 2.0 - bw / 2.0, VH - 40.0, bw, 12.0, b.hp / b.max_hp, rgb(150, 80, 200), rgb(30, 15, 40));
         }
         if self.boss_t > 0.0 {
             let a = self.boss_t.min(1.0);
-            centered("SOYA LORDI", VH * 0.32, 72.0, Color::new(0.8, 0.5, 1.0, a));
-            centered("Zulmat qal'asining qo'riqchisi", VH * 0.32 + 40.0, 24.0, Color::new(0.8, 0.8, 0.9, a));
+            let bv = ((self.floor - 1) % 3) as usize;
+            centered(BOSS_NAMES[bv], VH * 0.32, 72.0, Color::new(0.8, 0.5, 1.0, a));
+            centered(BOSS_SUB[bv], VH * 0.32 + 40.0, 24.0, Color::new(0.8, 0.8, 0.9, a));
         }
         for t in &self.texts {
             let sp = w2ui(t.pos);
@@ -876,6 +971,37 @@ impl Game {
                 let s = if i == 3 { format!("{} {}", label, p.potions) } else { label.to_string() };
                 txt(&s, bp.x - tw(&s, 20.0) / 2.0, bp.y + 7.0, 20.0, Color::new(1.0, 1.0, 1.0, a));
             }
+        }
+        // shop labels
+        if self.rooms[self.cur].kind == RK::Shop && self.state == State::Play {
+            for (i, sp) in shop_slots().iter().enumerate() {
+                let u = w2ui(*sp + vec2(0.0, 12.0));
+                let price = (SHOP[i].1 as f32 * (1.0 + 0.25 * (self.floor - 1) as f32)) as u32;
+                let ok = self.rooms[self.cur].stock[i] > 0;
+                let l = if ok { format!("{}", price) } else { "-".to_string() };
+                txt(&l, u.x - tw(&l, 22.0) / 2.0, u.y + 14.0, 22.0, if ok && p.gold >= price { rgb(255, 215, 90) } else { rgb(200, 110, 110) });
+                txt(SHOP[i].0, u.x - tw(SHOP[i].0, 16.0) / 2.0, u.y + 34.0, 16.0, Color::new(1.0, 1.0, 1.0, if ok { 0.85 } else { 0.4 }));
+            }
+            centered("SAVDOGAR: buyum ustidan yuring - sotib olasiz", VH - 30.0, 20.0, Color::new(1.0, 0.92, 0.7, 0.85));
+        }
+        // first-room tutorial
+        if self.floor == 1 && self.cur == 0 && self.state == State::Play {
+            let lines: [&str; 4] = if self.touch_mode {
+                ["Chap tomon: yurish (joystik)", "HUJUM: qilich, bosib turing - kombo", "SAKRASH: zarbadan qochish, OLOV: sehr", "Eshikdan chiqing - dushmanlar kutmoqda!"]
+            } else {
+                ["WASD: yurish", "J / sichqoncha: qilich (bosib turing - kombo)", "Space: sakrash (zarar olmaysiz), K: olov, Q: iksir", "Eshikdan chiqing - dushmanlar kutmoqda!"]
+            };
+            let (pw, ph) = (560.0_f32.min(w - 40.0), 150.0);
+            let (px, py) = (w / 2.0 - pw / 2.0, VH * 0.6);
+            draw_rectangle(px, py, pw, ph, Color::new(0.05, 0.03, 0.09, 0.82));
+            draw_rectangle_lines(px, py, pw, ph, 2.0, rgb(255, 215, 90));
+            for (i, l) in lines.iter().enumerate() { txt(l, px + 20.0, py + 34.0 + i as f32 * 32.0, 21.0, if i == 3 { rgb(255, 215, 90) } else { WHITE }); }
+        }
+        if self.state == State::Play {
+            let r = pause_btn();
+            draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.07, 0.16, 0.8));
+            draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, rgb(150, 130, 190));
+            draw_rectangle(r.x + 16.0, r.y + 14.0, 7.0, 24.0, WHITE); draw_rectangle(r.x + 29.0, r.y + 14.0, 7.0, 24.0, WHITE);
         }
         if self.fade > 0.0 { draw_rectangle(0.0, 0.0, w, VH, Color::new(0.0, 0.0, 0.0, self.fade.min(1.0))); }
     }
@@ -1010,13 +1136,36 @@ async fn main() {
                     let tm = g.touch_mode || !touches().is_empty();
                     g = Game::new(tm, g.best_floor);
                     g.state = State::Play;
+                    // QA hooks (desktop only): start in the shop or a boss room
+                    #[cfg(not(any(target_arch = "wasm32", target_os = "android")))]
+                    {
+                        if let Ok(n) = std::env::var("ZQ_BOSS") { let f: u32 = n.parse().unwrap_or(1); g.floor = f; g.rooms = gen_floor(f); if let Some(i) = g.rooms.iter().position(|r| r.kind == RK::Boss) { g.cur = i; g.p.pos = room_center() + vec2(0.0, 50.0); g.enter_room(&sfx); } }
+                        if std::env::var("ZQ_SHOP").is_ok() { if let Some(i) = g.rooms.iter().position(|r| r.kind == RK::Shop) { g.cur = i; g.p.gold = 200; g.p.pos = room_center() + vec2(-60.0, 10.0); } }
+                    }
                 }
             }
             State::Play => {
                 g.read_touches();
                 if g.hitstop > 0.0 { g.hitstop -= dt; } else { g.update(dt, &sfx); }
                 g.draw_world(&art); g.draw_ui(&art);
-                if is_key_pressed(KeyCode::Escape) { g.state = State::Title; }
+                let pt = tap();
+                if is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::P) || pt.map_or(false, |p| pause_btn().contains(p)) { g.state = State::Pause; g.stick = None; g.atk_touch = None; }
+            }
+            State::Pause => {
+                g.draw_world(&art); g.draw_ui(&art);
+                draw_rectangle(0.0, 0.0, vw(), VH, Color::new(0.02, 0.01, 0.05, 0.7));
+                centered("PAUZA", VH * 0.22, 72.0, rgb(255, 215, 90));
+                let cx = vw() / 2.0;
+                let rs = [Rect::new(cx - 170.0, VH * 0.32, 340.0, 64.0), Rect::new(cx - 170.0, VH * 0.32 + 84.0, 340.0, 64.0), Rect::new(cx - 170.0, VH * 0.32 + 168.0, 340.0, 64.0), Rect::new(cx - 170.0, VH * 0.32 + 252.0, 340.0, 64.0)];
+                ui_btn(rs[0], "DAVOM ETISH", rgb(120, 220, 130));
+                ui_btn(rs[1], if music_on() { "MUSIQA: YONIQ" } else { "MUSIQA: O'CHIQ" }, rgb(180, 160, 240));
+                ui_btn(rs[2], if sfx_on() { "EFFEKTLAR: YONIQ" } else { "EFFEKTLAR: O'CHIQ" }, rgb(180, 160, 240));
+                ui_btn(rs[3], "BOSH MENYU", rgb(240, 150, 140));
+                let t = tap();
+                if is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::P) || t.map_or(false, |p| rs[0].contains(p)) { g.state = State::Play; }
+                if t.map_or(false, |p| rs[1].contains(p)) { MUSIC_ON.store(!music_on(), std::sync::atomic::Ordering::Relaxed); set_sound_volume(&music, if music_on() { 0.45 } else { 0.0 }); }
+                if t.map_or(false, |p| rs[2].contains(p)) { SFX_ON.store(!sfx_on(), std::sync::atomic::Ordering::Relaxed); }
+                if t.map_or(false, |p| rs[3].contains(p)) { let b = g.best_floor.max(g.floor); g = Game::new(g.touch_mode, b); }
             }
             State::LevelUp => {
                 g.draw_world(&art); g.draw_ui(&art);
