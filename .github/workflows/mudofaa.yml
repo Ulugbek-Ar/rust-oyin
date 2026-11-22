@@ -1,0 +1,74 @@
+name: Qala Mudofaasi APK
+
+on:
+  push:
+    branches: [main, ccr-6beb9320-7sxxbq]
+    paths: ['mudofaa/**', '.github/workflows/mudofaa.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build APK (cargo-quad-apk)
+        run: |
+          docker run --rm -v "$PWD/mudofaa":/root/src -w /root/src notfl3/cargo-apk \
+            bash -c "rustup update stable && rustup default stable && \
+                     rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android && \
+                     cargo quad-apk build --release"
+          sudo cp mudofaa/target/android-artifacts/release/apk/mudofaa.apk raw.apk
+          sudo chown $USER raw.apk
+      - name: Sign APK (zipalign + apksigner)
+        run: |
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          zip -q -d raw.apk 'META-INF/*' || true
+          $BT/zipalign -f -p 4 raw.apk aligned.apk
+          keytool -genkeypair -keystore k.jks -storepass mudofaa123 -keypass mudofaa123 -alias mudofaa \
+            -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Piksel Qala, O=Piksel Qala, C=UZ"
+          $BT/apksigner sign --ks k.jks --ks-pass pass:mudofaa123 --key-pass pass:mudofaa123 --out QALA-MUDOFAASI.apk aligned.apk
+          $BT/apksigner verify QALA-MUDOFAASI.apk
+          $BT/aapt dump badging QALA-MUDOFAASI.apk | grep -E "package:|application:|native-code"
+          ls -lh QALA-MUDOFAASI.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: QALA-MUDOFAASI-apk
+          path: QALA-MUDOFAASI.apk
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk
+          files: QALA-MUDOFAASI.apk
+          overwrite_files: true
+
+  emulator-test:
+    needs: apk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: QALA-MUDOFAASI-apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 31
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            sleep 20
+            adb install -r QALA-MUDOFAASI.apk
+            adb logcat -c
+            adb shell am start -W -n uz.pikselqala.mudofaa/.MainActivity
+            sleep 20
+            adb shell pidof uz.pikselqala.mudofaa || echo "=== PROCESS NOT RUNNING ==="
+            echo "=== CRASH BUFFER ===" && adb logcat -b crash -d | tail -40
+            echo "=== APP LOG ===" && adb logcat -d -v brief | grep -E "ZQ|SAPP|AndroidRuntime" | tail -40

@@ -132,6 +132,11 @@ ul.feat { margin: 10px 0 0; padding-left: 18px; color: var(--dim); }
   // ---------- data ----------
   var REL = 'https://github.com/Ulugbek-Ar/rust-oyin/releases/download/apk/';
   var GAMES = [
+    { id: 'mudofaa', name: "Qal'a Mudofaasi", genre: 'Strategiya', created: '2026-11-22', updated: '2026-11-22',
+      apk: null, web: { page: 'mudofaa.html', mb: 0.66 }, status: ['ok', 'Yangi'],
+      note: "Android APK yig'ilmoqda va emulyatorda sinalmoqda. Hozircha brauzerda o'ynang.",
+      desc: "Yo'l bo'ylab minoralar qurib, qal'ani 15 to'lqin dushmandan himoya qiling. Qal'a Ritsari dunyosidagi slime, ko'rshapalak, ritsar va Soya Lordi hujumga o'tadi.",
+      feat: ["3 xil minora: kamonchi, sehrgar (sekinlashtiradi), to'p (portlash)", "Har minora 3 darajagacha yangilanadi, sotish mumkin", "15 to'lqin, har 5-to'lqinda boss, x2 tezlik"] },
     { id: 'hokkey', name: 'Neon Hokkey', genre: '2 kishilik', created: '2026-11-22', updated: '2026-11-22',
       apk: null, web: { page: 'hokkey.html', mb: 0.6 }, status: ['ok', 'Yangi · 2 kishi'],
       note: "Android APK yig'ilmoqda va emulyatorda sinalmoqda. Hozircha brauzerda o'ynang.",
@@ -175,6 +180,9 @@ ul.feat { margin: 10px 0 0; padding-left: 18px; color: var(--dim); }
   }
   function icon(cv, id) {
     var x = cv.getContext('2d'); cv.width = cv.height = 16;
+    if (id === 'mudofaa') { x.fillStyle = '#4a9446'; x.fillRect(0, 0, 16, 16); x.fillStyle = '#b08456'; x.fillRect(0, 10, 16, 3);
+      x.fillStyle = '#140c1c'; x.fillRect(4, 4, 8, 10); x.fillStyle = '#a09cac'; x.fillRect(5, 5, 6, 8); x.fillRect(4, 2, 2, 2); x.fillRect(7, 2, 2, 2); x.fillRect(10, 2, 2, 2);
+      x.fillStyle = '#6e462d'; x.fillRect(7, 9, 2, 4); return; }
     if (id === 'hokkey') { x.fillStyle = '#0a0b1a'; x.fillRect(0, 0, 16, 16); x.strokeStyle = '#40d9ff'; x.lineWidth = 1.5; x.beginPath(); x.arc(5, 8, 3, 0, 7); x.stroke();
       x.strokeStyle = '#ff4db3'; x.beginPath(); x.arc(11, 6, 2.5, 0, 7); x.stroke(); x.fillStyle = '#ffdc78'; x.fillRect(10, 10, 3, 3); return; }
     if (id === 'ajdar') { x.fillStyle = '#b84d6b'; x.fillRect(0, 0, 16, 16); x.fillStyle = '#ffe0a0'; x.fillRect(6, 10, 4, 3);
@@ -184,6 +192,18 @@ ul.feat { margin: 10px 0 0; padding-left: 18px; color: var(--dim); }
   }
   function cover(cv, id) {
     var x = cv.getContext('2d'); cv.width = 160; cv.height = 90;
+    if (id === 'mudofaa') {
+      for (var ty = 0; ty < 90; ty += 10) for (var tx = 0; tx < 160; tx += 10) { x.fillStyle = (tx * 7 + ty * 3) % 3 ? '#4a9446' : '#56a04e'; x.fillRect(tx, ty, 10, 10); }
+      x.fillStyle = '#b08456'; x.fillRect(0, 20, 50, 10); x.fillRect(40, 20, 10, 50); x.fillRect(40, 60, 60, 10); x.fillRect(90, 30, 10, 40); x.fillRect(90, 30, 50, 10);
+      x.fillStyle = '#140c1c'; x.fillRect(128, 12, 26, 30); x.fillStyle = '#a09cac'; x.fillRect(129, 13, 24, 28);
+      for (var i = 0; i < 4; i++) { x.fillStyle = '#a09cac'; x.fillRect(129 + i * 7, 8, 4, 5); }
+      x.fillStyle = '#6e462d'; x.fillRect(137, 28, 8, 13); x.fillStyle = '#3a6cd8'; x.fillRect(141, 0, 1, 8); x.fillRect(142, 0, 6, 4);
+      function tw(px, py, c) { x.fillStyle = '#140c1c'; x.fillRect(px, py, 10, 14); x.fillStyle = '#a09cac'; x.fillRect(px + 1, py + 1, 8, 12); x.fillStyle = c; x.fillRect(px - 1, py - 3, 12, 4); }
+      tw(58, 34, '#8c5a32'); tw(108, 48, '#8c5ac8'); tw(20, 40, '#ff9640');
+      blit(x, SPR.slime, 60, 56, 0.9); blit(x, SPR.slime, 10, 14, 0.9); blit(x, SPR.skel, 88, 40, 0.8);
+      x.strokeStyle = '#f0e6c8'; x.beginPath(); x.moveTo(66, 36); x.lineTo(68, 58); x.stroke();
+      return;
+    }
     if (id === 'hokkey') {
       x.fillStyle = '#05050f'; x.fillRect(0, 0, 160, 90); x.fillStyle = '#0d0f22'; x.fillRect(10, 8, 140, 74);
       function gl(c, f) { x.shadowColor = c; x.shadowBlur = 8; x.strokeStyle = c; x.lineWidth = 1.5; x.beginPath(); f(); x.stroke(); x.shadowBlur = 0; }
