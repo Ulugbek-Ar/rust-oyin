@@ -288,6 +288,11 @@ struct Item { pos: Vec2, vel: Vec2, kind: IK }
 struct FText { pos: Vec2, s: String, col: Color, life: f32 }
 struct Particle { p: Vec2, v: Vec2, life: f32, max: f32, size: f32, col: Color }
 struct Corpse { kind: EK, bv: u8, pos: Vec2, t: f32, flip: bool }
+#[derive(Clone, Copy, PartialEq)]
+enum FK { Spark, Ring, Puff, Shard, Soul, Slash, Ghost }
+// v: velocity, z/vz: height for bouncing shards, a/b: angles (slash) or flip (ghost)
+struct Fx { k: FK, p: Vec2, v: Vec2, z: f32, vz: f32, t: f32, max: f32, s: f32, a: f32, b: f32, col: Color }
+fn fx(k: FK, p: Vec2, max: f32, s: f32, col: Color) -> Fx { Fx { k, p, v: Vec2::ZERO, z: 0.0, vz: 0.0, t: 0.0, max, s, a: 0.0, b: 0.0, col } }
 
 struct Player { pos: Vec2, vel: Vec2, face: Vec2, hp: f32, max_hp: f32, mp: f32, max_mp: f32, mp_regen: f32, atk: f32,
     crit: f32, vamp: f32, speed: f32, level: u32, xp: f32, xp_need: f32, gold: u32, potions: u32, inv: f32,
@@ -329,7 +334,7 @@ struct Game {
     items: Vec<Item>, parts: Vec<Particle>, texts: Vec<FText>, t: f32, over_t: f32, shake: f32, hitstop: f32, fade: f32,
     kills: u32, choices: [usize; 3], touch_mode: bool, stick: Option<(u64, Vec2, Vec2)>, atk_touch: Option<u64>,
     btn: [bool; 4], best_floor: u32, boss_t: f32, shop_in: Option<usize>,
-    corpses: Vec<Corpse>, lock_anim: f32, chest_t: f32,
+    corpses: Vec<Corpse>, fx: Vec<Fx>, lock_anim: f32, chest_t: f32,
 }
 
 fn room_center() -> Vec2 { vec2(RW as f32 * T / 2.0, RH as f32 * T / 2.0) }
@@ -352,7 +357,7 @@ impl Game {
             combo: 0, combo_t: 0.0, walk_t: 0.0 };
         let mut g = Game { state: State::Title, floor: 1, rooms: gen_floor(1), cur: 0, p, enemies: vec![], shots: vec![],
             items: vec![], parts: vec![], texts: vec![], t: 0.0, over_t: 0.0, shake: 0.0, hitstop: 0.0, fade: 0.6, kills: 0,
-            choices: [0, 1, 2], touch_mode, stick: None, atk_touch: None, btn: [false; 4], best_floor, boss_t: 0.0, shop_in: None, corpses: vec![], lock_anim: 0.0, chest_t: -1.0 };
+            choices: [0, 1, 2], touch_mode, stick: None, atk_touch: None, btn: [false; 4], best_floor, boss_t: 0.0, shop_in: None, corpses: vec![], fx: vec![], lock_anim: 0.0, chest_t: -1.0 };
         g.rooms[0].visited = true;
         g
     }
@@ -381,6 +386,33 @@ impl Game {
             self.parts.push(Particle { p, v: Vec2::from_angle(rand::gen_range(0.0, TAU)) * rand::gen_range(0.2, 1.0) * spd,
                 life, max: life, size: rand::gen_range(1.0, 2.5), col });
         }
+    }
+    // star-shaped contact spark + shock ring, aimed along the blow
+    fn spark(&mut self, p: Vec2, dir: Vec2, big: bool) {
+        let mut f = fx(FK::Spark, p, if big { 0.16 } else { 0.11 }, if big { 13.0 } else { 9.0 }, rgb(255, 245, 200));
+        f.a = dir.to_angle() + rand::gen_range(-0.3, 0.3); self.fx.push(f);
+        self.fx.push(fx(FK::Ring, p, 0.18, if big { 16.0 } else { 10.0 }, rgb(255, 230, 160)));
+        for _ in 0..if big { 6 } else { 3 } {
+            let mut d = fx(FK::Shard, p, 0.35, 1.0, rgb(255, 220, 120));
+            d.v = Vec2::from_angle(dir.to_angle() + rand::gen_range(-0.9, 0.9)) * rand::gen_range(60.0, 140.0); d.z = 2.0; d.vz = rand::gen_range(30.0, 90.0);
+            self.fx.push(d);
+        }
+    }
+    // death: smoke puffs, bouncing chunks in the body colour, a soul for the undead
+    fn poof(&mut self, p: Vec2, col: Color, big: bool, soul: bool) {
+        let k = if big { 3.0 } else { 1.0 };
+        for i in 0..(if big { 14 } else { 7 }) {
+            let a = i as f32 / if big { 14.0 } else { 7.0 } * TAU + rand::gen_range(-0.3, 0.3);
+            let mut f = fx(FK::Puff, p + Vec2::from_angle(a) * 2.0 * k, rand::gen_range(0.35, 0.55), rand::gen_range(3.0, 5.0) * k, Color::new(0.85, 0.82, 0.9, 1.0));
+            f.v = Vec2::from_angle(a) * rand::gen_range(25.0, 45.0) * k.sqrt() + vec2(0.0, -8.0); self.fx.push(f);
+        }
+        for _ in 0..(if big { 22 } else { 8 }) {
+            let mut d = fx(FK::Shard, p, rand::gen_range(0.6, 0.9), if rand::gen_range(0, 3) == 0 { 2.0 } else { 1.5 } * k.sqrt(), col);
+            d.v = Vec2::from_angle(rand::gen_range(0.0, TAU)) * rand::gen_range(30.0, 90.0) * k.sqrt(); d.z = 6.0 * k; d.vz = rand::gen_range(60.0, 130.0);
+            self.fx.push(d);
+        }
+        if soul { let mut f = fx(FK::Soul, p - vec2(0.0, 8.0 * k), 1.0, k, rgb(170, 220, 255)); f.a = rand::gen_range(0.0, TAU); self.fx.push(f); }
+        self.fx.push(fx(FK::Ring, p - vec2(0.0, 4.0 * k), 0.25, 14.0 * k, Color::new(1.0, 1.0, 1.0, 0.8)));
     }
     fn text(&mut self, pos: Vec2, s: String, col: Color) { self.texts.push(FText { pos, s, col, life: 0.8 }); }
 
@@ -469,7 +501,8 @@ impl Game {
         e.knock += if e.kind == EK::Boss { kb * 0.12 } else { kb };
         let pos = e.pos;
         self.text(pos - vec2(0.0, 16.0), format!("{}{}", d.round() as i32, if crit { "!" } else { "" }), if crit { rgb(255, 220, 80) } else { WHITE });
-        self.burst(pos - vec2(0.0, 6.0), rgb(255, 235, 210), 6, 70.0);
+        self.spark(pos - vec2(0.0, 6.0) - kb.normalize_or(Vec2::X) * 3.0, kb.normalize_or(Vec2::X), crit);
+        if crit { self.hitstop = self.hitstop.max(0.09); self.shake = self.shake.max(4.0); }
         if self.p.vamp > 0.0 { self.p.hp = (self.p.hp + self.p.vamp).min(self.p.max_hp); }
     }
 
@@ -545,6 +578,9 @@ impl Game {
                 else { self.nearest_enemy(48.0).map_or(self.p.face, |e| (e - self.p.pos).normalize_or(self.p.face)) };
             self.p.face = face;
             self.p.vel += face * 70.0;
+            { let side = if self.p.combo % 2 == 0 { 1.0 } else { -1.0 }; let big = self.p.combo == 2;
+              let mut f = fx(FK::Slash, self.p.pos - vec2(0.0, 6.0), if big { 0.2 } else { 0.15 }, if big { 24.0 } else { 19.0 }, rgb(235, 245, 255));
+              f.a = face.to_angle() - 1.3 * side; f.b = face.to_angle() + 1.3 * side; self.fx.push(f); }
             let mul = [1.0, 1.1, 1.8][self.p.combo];
             let range = if self.p.combo == 2 { 30.0 } else { 26.0 };
             let mut any = false;
@@ -560,13 +596,13 @@ impl Game {
                 }
             }
             play(&sfx.swing, 0.35);
-            if any { play(&sfx.hit, 0.6); self.hitstop = if self.p.combo == 2 { 0.07 } else { 0.035 }; self.shake = self.shake.max(2.5); }
+            if any { play(&sfx.hit, 0.6); self.hitstop = self.hitstop.max(if self.p.combo == 2 { 0.1 } else { 0.05 }); self.shake = self.shake.max(2.5); }
         }
 
         // ---- player movement ----
         if self.p.roll_t > 0.0 {
             self.p.vel = self.p.roll_dir * 210.0;
-            if (self.t * 30.0) as i32 % 2 == 0 { let pos = self.p.pos; self.parts.push(Particle { p: pos, v: Vec2::ZERO, life: 0.25, max: 0.25, size: 3.0, col: rgb(120, 140, 200) }); }
+            if (self.t * 40.0) as i32 % 2 == 0 { let mut g = fx(FK::Ghost, self.p.pos + vec2(0.0, 1.0), 0.22, 1.0, rgb(110, 170, 255)); g.a = 1.0 - self.p.roll_t / 0.28; g.b = if self.p.face.x < 0.0 { 1.0 } else { 0.0 }; self.fx.push(g); }
         } else {
             let spd = self.p.speed * if self.p.swing > 0.0 { 0.35 } else { 1.0 };
             self.p.vel = self.p.vel.lerp(dir * spd, (dt * 14.0).min(1.0));
@@ -582,6 +618,17 @@ impl Game {
         let lt = if self.rooms[self.cur].cleared { 0.0 } else { 1.0 };
         self.lock_anim += (lt - self.lock_anim) * (dt * 7.0).min(1.0);
         for c in self.corpses.iter_mut() { c.t += dt; }
+        for f in self.fx.iter_mut() {
+            f.t += dt;
+            match f.k {
+                FK::Puff => { f.p += f.v * dt; f.v *= 1.0 - 4.0 * dt; }
+                FK::Shard => { f.p += f.v * dt; f.z += f.vz * dt; f.vz -= 420.0 * dt;
+                    if f.z < 0.0 { f.z = 0.0; f.vz = -f.vz * 0.35; f.v *= 0.5; } }
+                FK::Soul => { f.p.y -= 22.0 * dt; f.p.x += (f.t * 6.0 + f.a).sin() * 10.0 * dt; }
+                _ => {}
+            }
+        }
+        self.fx.retain(|f| f.t < f.max);
         self.corpses.retain(|c| c.t < 0.4);
         if self.chest_t >= 0.0 {
             self.chest_t += dt;
@@ -733,7 +780,8 @@ impl Game {
         for (kind, pos) in dead {
             self.kills += 1;
             let col = match kind { EK::Slime => rgb(100, 210, 100), EK::Bat => rgb(150, 80, 200), EK::Skel => rgb(236, 232, 220), EK::Knight => rgb(200, 50, 50), EK::Boss => rgb(150, 80, 200) };
-            self.burst(pos - vec2(0.0, 6.0), col, if kind == EK::Boss { 120 } else { 20 }, if kind == EK::Boss { 200.0 } else { 100.0 });
+            self.poof(pos - vec2(0.0, 4.0), col, kind == EK::Boss, matches!(kind, EK::Skel | EK::Knight | EK::Boss));
+            if kind == EK::Boss { self.burst(pos - vec2(0.0, 6.0), col, 60, 180.0); self.hitstop = 0.25; }
             self.shake = self.shake.max(if kind == EK::Boss { 14.0 } else { 3.0 });
             play(&sfx.kill, 0.55);
             let f = 1.0 + 0.2 * (self.floor - 1) as f32;
@@ -947,6 +995,7 @@ impl Game {
             let h = sz * (1.0 - k * 0.5);
             spr2(t, c.pos.x - sz / 2.0, c.pos.y - h + 2.0 - k * 4.0, sz, h, Color::new(1.0, 1.0, 1.0, 1.0 - k), c.flip);
         }
+        self.draw_fx(art);
         for p in &self.parts {
             let a = p.life / p.max;
             draw_rectangle(p.p.x, p.p.y, p.size, p.size, Color { a, ..p.col });
@@ -970,6 +1019,67 @@ impl Game {
         set_camera(&Camera2D { target: vec2(vw(), VH) / 2.0, zoom: vec2(2.0 / vw(), 2.0 / VH), ..Default::default() });
     }
 
+    fn draw_fx(&self, art: &Art) {
+        let ease = |x: f32| 1.0 - (1.0 - x.clamp(0.0, 1.0)).powi(3);
+        for f in &self.fx {
+            let k = f.t / f.max;
+            match f.k {
+                FK::Ghost => {
+                    let rot = f.a * TAU * if f.b > 0.5 { -1.0 } else { 1.0 };
+                    draw_rig(&art.rig_hero, f.p, f.b > 0.5, 1.0, &Pose { phase: 0.0, moving: false, breath: 0.0, front: Some(Vec2::from_angle(rot)), back_swing: rot, leg_spread: (rot * 2.0).sin() * 0.9 }, true, Color { a: 0.55 * (1.0 - k), ..f.col });
+                }
+                FK::Slash => {
+                    // crescent: the head sweeps fast (ease-out), the tail chases it, thick at the head
+                    let head = ease(k * 2.2); let tail = ease((k - 0.25) * 1.8);
+                    if head <= tail { continue; }
+                    let n = 10;
+                    for i in 0..n {
+                        let u0 = tail + (head - tail) * i as f32 / n as f32;
+                        let u1 = tail + (head - tail) * (i + 1) as f32 / n as f32;
+                        let w = |u: f32| ((u - tail) / (head - tail)).powf(0.7) * f.s * 0.26;
+                        let (a0, a1) = (f.a + (f.b - f.a) * u0, f.a + (f.b - f.a) * u1);
+                        let (d0, d1) = (Vec2::from_angle(a0), Vec2::from_angle(a1));
+                        let (o0, o1) = (f.p + d0 * f.s, f.p + d1 * f.s);
+                        let (i0, i1) = (f.p + d0 * (f.s - w(u0)), f.p + d1 * (f.s - w(u1)));
+                        let edge = Color::new(0.55, 0.75, 1.0, 0.9 * (1.0 - k));
+                        draw_triangle(o0, o1, i1, edge); draw_triangle(o0, i1, i0, edge);
+                        let (c0, c1) = (f.p + d0 * (f.s - w(u0) * 0.25), f.p + d1 * (f.s - w(u1) * 0.25));
+                        draw_triangle(o0, o1, c1, Color { a: 0.85 * (1.0 - k), ..f.col }); draw_triangle(o0, c1, c0, Color { a: 0.85 * (1.0 - k), ..f.col });
+                    }
+                }
+                FK::Spark => {
+                    // 4-ray star, long along the blow; snaps big then shrinks
+                    let r = f.s * (if k < 0.25 { 1.0 } else { 1.0 - (k - 0.25) / 0.75 });
+                    for j in 0..4 {
+                        let a = f.a + j as f32 * TAU / 4.0;
+                        let len = if j % 2 == 0 { r } else { r * 0.55 };
+                        let d = Vec2::from_angle(a);
+                        let n = vec2(-d.y, d.x) * (1.0 + r * 0.08);
+                        draw_triangle(f.p + n, f.p - n, f.p + d * len, f.col);
+                    }
+                    draw_rectangle(f.p.x - 1.5, f.p.y - 1.5, 3.0, 3.0, WHITE);
+                }
+                FK::Ring => { let r = f.s * ease(k); draw_circle_lines(f.p.x, f.p.y, r, 1.5 * (1.0 - k) + 0.5, Color { a: f.col.a * (1.0 - k), ..f.col }); }
+                FK::Puff => {
+                    let r = f.s * (0.6 + 0.6 * ease(k)) * (1.0 - k * k);
+                    let c = if k < 0.15 { WHITE } else { f.col };
+                    draw_circle(f.p.x, f.p.y, r, Color { a: 0.85 * (1.0 - k), ..c });
+                    draw_circle(f.p.x - r * 0.3, f.p.y - r * 0.3, r * 0.45, Color::new(1.0, 1.0, 1.0, 0.5 * (1.0 - k)));
+                }
+                FK::Shard => {
+                    let a = if k > 0.7 { (1.0 - k) / 0.3 } else { 1.0 };
+                    draw_rectangle(f.p.x - f.s / 2.0, f.p.y + 0.5, f.s, f.s * 0.5, Color::new(0.0, 0.0, 0.0, 0.3 * a));
+                    draw_rectangle((f.p.x - f.s / 2.0).round(), (f.p.y - f.z - f.s / 2.0).round(), f.s, f.s, Color { a, ..f.col });
+                }
+                FK::Soul => {
+                    let a = (1.0 - k) * (k * 8.0).min(1.0);
+                    for j in 0..4 { let q = f.p + vec2((f.t * 6.0 + f.a - j as f32 * 0.6).sin() * 1.5, j as f32 * 2.5); draw_circle(q.x, q.y, (2.6 - j as f32 * 0.5) * f.s, Color { a: a * (1.0 - j as f32 * 0.22), ..f.col }); }
+                    draw_rectangle(f.p.x - 1.0 * f.s, f.p.y - 0.5, 0.8 * f.s, 0.8 * f.s, Color::new(0.1, 0.1, 0.2, a)); draw_rectangle(f.p.x + 0.4 * f.s, f.p.y - 0.5, 0.8 * f.s, 0.8 * f.s, Color::new(0.1, 0.1, 0.2, a));
+                }
+            }
+        }
+    }
+
     fn draw_player(&self, art: &Art) {
         let p = &self.p;
         let moving = p.vel.length() > 10.0 && p.roll_t <= 0.0;
@@ -979,38 +1089,45 @@ impl Game {
         let flip = p.face.x < 0.0;
         let lean = if p.swing > 0.0 { p.face * 1.5 } else { Vec2::ZERO };
         let feet = p.pos + vec2(lean.x, 1.0 + lean.y * 0.5);
-        let swing_dir = if p.swing > 0.0 {
+        // swing: snap through most of the arc in the first 60%, then hold the follow-through
+        let side = if p.combo % 2 == 0 { 1.0 } else { -1.0 };
+        let sweep = if p.combo == 2 { 3.0 } else { 2.5 };
+        let fwd = p.face.to_angle();
+        let phase = p.walk_t * 10.0;
+        let breath = (self.t * 2.6).sin() * 0.5 + 0.5;
+        let sword_a = if p.swing > 0.0 {
             let prog = 1.0 - p.swing / 0.18;
-            let side = if p.combo % 2 == 0 { 1.0 } else { -1.0 };
-            let a0 = p.face.to_angle() - 1.2 * side;
-            Some(Vec2::from_angle(a0 + 2.4 * side * prog))
-        } else { None };
+            let e = 1.0 - (1.0 - (prog / 0.6).min(1.0)).powi(3);
+            fwd - sweep * 0.5 * side + sweep * side * e
+        } else {
+            // guard: blade low and forward, bobbing with the step
+            let gx = if flip { -1.0 } else { 1.0 };
+            vec2(gx * 0.55, 1.0).to_angle() - gx * if moving { 0.15 + phase.sin().abs() * 0.12 } else { breath * 0.06 }
+        };
+        let arm_dir = Vec2::from_angle(sword_a);
         if p.roll_t > 0.0 {
             let rot = (1.0 - p.roll_t / 0.28) * TAU * p.roll_dir.x.signum();
             draw_rig(&art.rig_hero, p.pos + vec2(0.0, 1.0), flip, 1.0, &Pose { phase: 0.0, moving: false, breath: 0.0, front: Some(Vec2::from_angle(rot)), back_swing: rot, leg_spread: (rot * 2.0).sin() * 0.9 }, hurt_flash, WHITE);
-        } else {
-            let pose = Pose { phase: p.walk_t * 10.0, moving, breath: (self.t * 2.6).sin() * 0.5 + 0.5, front: swing_dir, back_swing: (self.t * 2.0).sin() * 0.08, leg_spread: if p.swing > 0.0 { 0.25 } else { 0.0 } };
-            draw_rig(&art.rig_hero, feet, flip, 1.0, &pose, hurt_flash, WHITE);
+            return;
         }
-        if p.swing > 0.0 {
-            let prog = 1.0 - p.swing / 0.18;
-            let side = if p.combo % 2 == 0 { 1.0 } else { -1.0 };
-            let base = p.face.to_angle();
-            let a = base - 1.2 * side + 2.4 * side * prog;
-            let hilt = rig_point(p.pos + vec2(0.0, 1.0), p.face.x < 0.0, 1.0, art.rig_hero.shoulder[1]) + Vec2::from_angle(a) * 3.0;
-            let a0 = base - 1.2 * side;
-            let steps = 8;
-            for s in 0..steps {
-                let t0 = a0 + (a - a0) * s as f32 / steps as f32;
-                let t1 = a0 + (a - a0) * (s + 1) as f32 / steps as f32;
-                let r = if p.combo == 2 { 20.0 } else { 16.0 };
-                let (q0, q1) = (hilt + Vec2::from_angle(t0) * r, hilt + Vec2::from_angle(t1) * r);
-                draw_line(q0.x, q0.y, q1.x, q1.y, 2.5, Color::new(0.85, 0.92, 1.0, 0.25 + 0.5 * s as f32 / steps as f32));
-            }
-            let tip = hilt + Vec2::from_angle(a) * 14.0;
-            draw_line(hilt.x, hilt.y, tip.x, tip.y, 2.0, rgb(220, 228, 240));
-            draw_line(hilt.x, hilt.y, hilt.x + (tip.x - hilt.x) * 0.2, hilt.y + (tip.y - hilt.y) * 0.2, 2.5, rgb(255, 215, 90));
-        }
+        let pose = Pose { phase, moving, breath, front: Some(arm_dir), back_swing: (self.t * 2.0).sin() * 0.08 + if p.swing > 0.0 { -0.5 } else { 0.0 }, leg_spread: if p.swing > 0.0 { 0.35 } else { 0.0 } };
+        draw_rig(&art.rig_hero, feet, flip, 1.0, &pose, hurt_flash, WHITE);
+        let bob = if moving { -phase.sin().abs() * 1.3 } else { -breath };
+        let hilt = rig_point(feet, flip, 1.0, art.rig_hero.shoulder[1]) + vec2(0.0, bob) + arm_dir * art.rig_hero.arm_len;
+        let blade = Vec2::from_angle(sword_a);
+        let len = if p.combo == 2 && p.swing > 0.0 { 15.0 } else { 12.0 };
+        let tip = hilt + blade * len;
+        let n = vec2(-blade.y, blade.x);
+        // blade: dark outline, steel body, bright edge; gold crossguard and pommel
+        draw_line(hilt.x, hilt.y, tip.x, tip.y, 3.2, rgb(30, 26, 40));
+        draw_line(hilt.x, hilt.y, tip.x, tip.y, 2.0, if hurt_flash { WHITE } else { rgb(200, 210, 228) });
+        let e0 = hilt + n * 0.5; let e1 = tip + n * 0.5;
+        draw_line(e0.x, e0.y, e1.x, e1.y, 0.8, WHITE);
+        let g0 = hilt + n * 2.5; let g1 = hilt - n * 2.5;
+        draw_line(g0.x, g0.y, g1.x, g1.y, 1.8, rgb(255, 205, 80));
+        let pm = hilt - blade * 2.5;
+        draw_rectangle(pm.x - 1.0, pm.y - 1.0, 2.0, 2.0, rgb(255, 205, 80));
+        if p.swing > 0.0 && p.swing > 0.12 { draw_circle(tip.x, tip.y, 1.6, Color::new(1.0, 1.0, 1.0, 0.8)); }
     }
 
     fn draw_enemy(&self, e: &Enemy, art: &Art) {
@@ -1311,6 +1428,7 @@ async fn main() {
                     #[cfg(not(any(target_arch = "wasm32", target_os = "android")))]
                     {
                         if let Ok(n) = std::env::var("ZQ_BOSS") { let f: u32 = n.parse().unwrap_or(1); g.floor = f; g.rooms = gen_floor(f); if let Some(i) = g.rooms.iter().position(|r| r.kind == RK::Boss) { g.cur = i; g.p.pos = room_center() + vec2(0.0, 50.0); g.enter_room(&sfx); } }
+                        if std::env::var("ZQ_MOBS").is_ok() { for (k, d) in [(EK::Skel, vec2(22.0, -4.0)), (EK::Slime, vec2(24.0, 10.0)), (EK::Knight, vec2(-22.0, 4.0))] { let mut e = g.mk_enemy(k, g.p.pos + d); e.hp *= 6.0; g.enemies.push(e); } }
                         if std::env::var("ZQ_SHOP").is_ok() { if let Some(i) = g.rooms.iter().position(|r| r.kind == RK::Shop) { g.cur = i; g.p.gold = 200; g.p.pos = room_center() + vec2(-60.0, 10.0); } }
                     }
                 }
